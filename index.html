@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Shopay: good finds, thoughtful prices, and a little everyday joy.">
+  <title>Shopay · Good finds, everyday.</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<!-- For shared customer/admin data, open both pages through the same static-server URL. -->
+<body data-mode="customer">
+  <div class="announcement">SHOPAY / EDITION 01 <span>Useful things for ordinary days</span><a href="admin.html">Seller desk ↗</a></div>
+  <header class="site-header">
+    <a class="logo" href="#home" aria-label="Shopay homepage"><span class="logo-mark">s</span>shopay<span class="coral">.</span></a>
+  <form id="search-form" class="search"><input name="search" placeholder="Search the collection" aria-label="Search products"><button aria-label="Search">⌕</button></form>
+    <nav><a href="#vouchers">Offers</a><a href="#orders">Purchases</a><a href="#cart">Bag <b id="cart-count">0</b></a><a href="#profile" id="account-link">Log in</a></nav>
+  </header>
+  <main>
+    <!-- HOME: static presentation stays in HTML; JavaScript fills the catalog. -->
+  <section id="page-home" class="page">
+  <div class="hero">
+  <div><span class="eyebrow">SHOPAY / OBJECTS FOR EVERYDAY</span><h1>Useful things.<br><em>Chosen with care.</em></h1>
+  <p>A considered mix of home, tech, and daily essentials.<br>Browse the current shop edit.</p><div class="hero-actions"><a class="button dark" href="#collection">Browse all 15 items ↗</a><a class="button light" href="#vouchers">See current offers</a></div>
+  <div class="hero-note"><span>01</span> Curated locally · Made for daily use</div></div>
+  <div class="hero-art">
+  <div class="hero-circle"></div><img id="hero-image" alt="Featured Shopay product">
+  <div class="hero-ticket"><small>SHOPAY / OBJECT NO. 01</small><strong>Picked for<br>real life.</strong><span>THE CURRENT EDIT</span></div>
+  <div class="hero-price"><small id="hero-name"></small><strong id="hero-price"></strong></div></div>
+      </div>
+  <div class="benefits"><span>01 <strong>One independent shop</strong><small>15 pieces in the current edit</small></span><span>02 <strong>Clear, simple offers</strong><small>See available vouchers at checkout</small></span><span>03 <strong>Flexible ways to pay</strong><small>Choose what works for you</small></span><span>04 <strong>Made for everyday living</strong><small>Useful finds, thoughtfully chosen</small></span></div>
+  <div class="offer-banner">
+  <div><span class="eyebrow">CURRENT OFFER / SELECTED ITEMS</span>
+  <h2>Worth a second look.</h2>
+  <p>Marked-down pieces from the current shop edit.</p></div>
+  <div id="flash-products" class="flash-products"></div><a href="#vouchers" class="button light">Explore offers ↗</a></div>
+  <section id="collection" class="collection">
+  <div class="section-heading">
+  <div><span class="eyebrow">SHOPAY / 15 ITEMS</span>
+  <h2>The collection.</h2></div><span id="product-count" class="muted"></span></div>
+  <div id="category-buttons" class="category-buttons" aria-label="Product categories"></div>
+  <div class="filters">
+  <label>Min ₱<input id="min-price" type="number" min="0" placeholder="0"></label>
+  <label>Max ₱<input id="max-price" type="number" min="0" placeholder="Any"></label>
+  <label class="inline"><input id="available-only" type="checkbox">In stock</label>
+  <label>Sort<select id="sort"><option value="recommended">For you</option><option value="low">Price: low to high</option><option value="high">Price: high to low</option><option value="sold">Best sellers</option><option value="new">Newest</option></select></label>
+          <button data-action="clear-filters" class="text-button">Reset filters</button>
+        </div>
+  <div id="product-grid" class="product-grid"></div>
+  <p class="collection-note">A little joy in every find. ✦</p>
+      </section>
+    </section>
+    <!-- PRODUCT: one reusable view for every catalog item. -->
+  <section id="page-product" class="page" hidden>
+      <a href="#home" class="text-button">← Back to good finds</a>
+  <div class="product-detail">
+  <div class="detail-art"><img id="detail-image" alt=""></div>
+  <div><span id="detail-category" class="eyebrow"></span><h1 id="detail-name"></h1>
+  <div id="detail-rating" class="muted"></div>
+  <div id="detail-price" class="detail-price"></div>
+  <p id="detail-description"></p>
+  <div class="notice">Thoughtfully selected essentials, ready for everyday use.</div>
+  <div class="quantity-row">
+  <label>Quantity<input id="product-qty" type="number" min="1" value="1"></label><span id="detail-stock"></span></div>
+  <div class="button-row"><button data-action="add-detail" class="button outlined">Add to bag</button><button data-action="buy" class="button primary">Buy now ↗</button></div>
+  <p class="muted" id="detail-shop"></p></div></div>
+  <div class="two-columns">
+  <section class="panel">
+  <h2>A closer look</h2>
+  <p id="detail-specs"></p></section>
+  <section class="panel">
+  <h2>Little notes from shoppers</h2>
+  <div id="reviews"></div>
+  <form id="review-form" hidden>
+  <label>Rating<select name="rating"><option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option><option value="2">★★</option><option value="1">★</option></select></label>
+  <label>Your review<textarea name="text" required maxlength="500"></textarea></label><button class="button primary">Post review</button></form>
+</section>
+</div>
+    </section>
+    <!-- CART: checked items alone are included in checkout. -->
+  <section id="page-cart" class="page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">A FEW GOOD FINDS</span><h1>Your shopping bag.</h1></div><a href="#home">Keep exploring ↗</a></div>
+  <div class="cart-layout">
+  <div id="cart-items" class="panel"></div><aside class="panel summary">
+  <h2>A little recap</h2>
+  <div id="cart-summary"></div><a class="button primary wide" href="#checkout">Continue to checkout ↗</a></aside></div>
+    </section>
+    <!-- CHECKOUT: no card, wallet, or banking credentials are collected. -->
+  <section id="page-checkout" class="page" hidden>
+      <span class="eyebrow">ALMOST YOURS</span><h1>The final little details.</h1>
+  <div class="cart-layout">
+  <form id="checkout-form" class="stack">
+  <section class="panel">
+  <h2>01 · Where should it go?</h2>
+  <label>Delivery address<textarea name="address" required minlength="8" maxlength="300"></textarea></label>
+  <label>Delivery option<select name="shipping" id="shipping-option"></select></label></section>
+  <section class="panel">
+  <h2>02 · A little extra off</h2>
+  <div class="two-columns">
+  <label>Order voucher<input name="code" placeholder="HELLO10" maxlength="30"></label>
+  <label>Shipping voucher<input name="shippingCode" placeholder="SHIPFREE" maxlength="30"></label></div>
+  <p class="muted">One order discount plus one shipping discount.</p><button type="button" data-action="apply-vouchers" class="button outlined">Apply vouchers</button></section>
+  <section class="panel">
+  <h2>03 · Your way to pay</h2>
+  <label>Payment method<select name="payment"><option>Cash on Delivery</option><option>E-Wallet</option><option>Card</option><option>ShopayLater</option></select></label>
+  <div id="installment-options" hidden>
+  <label>Installment duration<select name="months"><option value="1">1 month</option><option value="3" selected>3 months</option><option value="6">6 months</option></select></label>
+  <p id="credit-message" class="muted"></p></div></section>
+      </form>
+<aside class="panel summary">
+  <h2>Order summary</h2>
+  <div id="checkout-summary"></div><button class="button primary wide" form="checkout-form" id="place-order">Place order ↗</button>
+  </aside></div>
+    </section>
+  <section id="page-orders" class="page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">YOUR SHOPAY</span><h1>Your little deliveries.</h1></div>
+  <label class="inline"><input id="show-earlier-orders" type="checkbox">Include earlier purchases</label></div>
+  <div id="order-list"></div></section>
+  <section id="page-vouchers" class="page" hidden><span class="eyebrow">LITTLE EXTRAS, JUST FOR YOU</span><h1>Good finds. Better prices.</h1>
+  <div id="voucher-list" class="two-columns"></div></section>
+  <section id="page-later" class="page" hidden><span class="eyebrow">YOUR PACE. YOUR EVERYDAY.</span><h1>Shopay<span class="coral">Later</span></h1>
+  <div class="credit-banner">
+  <div><small>AVAILABLE SHOPAYLATER BALANCE</small>
+  <h2 id="available-credit"></h2>
+  <p>₱10,000 available · 0% installment fees</p></div><button data-action="activate-later" id="activate-later" class="button light">Activate ShopayLater</button></div>
+  <div id="installment-list"></div></section>
+    <!-- ACCOUNT: customer details, saved addresses, and data tools. -->
+  <section id="page-profile" class="page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">MAKE YOURSELF AT HOME</span><h1 id="profile-greeting"></h1></div><button data-action="logout" class="button outlined">Log out</button></div>
+  <div class="account-links"><a href="#orders">Your purchases ↗</a><a href="#vouchers">Voucher wallet ↗</a><a href="#later">ShopayLater ↗</a><a href="#backup">Data backup ↗</a></div>
+  <div class="two-columns">
+  <form id="profile-form" class="panel">
+  <h2>Your account</h2>
+  <label>Display name<input name="name" required maxlength="60"></label>
+  <label>Email address<input name="email" type="email" required maxlength="100"></label><button class="button primary">Save profile</button></form>
+  <form id="address-form" class="panel">
+  <h2>Saved delivery addresses</h2>
+  <div id="address-list"></div>
+  <label>Add a delivery address<textarea name="address" required minlength="8" maxlength="300"></textarea></label><button class="button outlined">Save address</button></form>
+</div></section>
+  <section id="page-backup" class="page" hidden><span class="eyebrow">ACCOUNT &amp; RECORDS</span><h1>Keep your good finds.</h1>
+  <div class="panel">
+  <p>Export a JSON backup before importing or restoring your shop data. Importing replaces saved records and signs you out.</p>
+  <div class="button-row"><button data-action="export" class="button primary">Export shop data</button>
+  <label class="button outlined file-label">Import shop data<input type="file" id="import-file" accept=".json,application/json"></label><button data-action="reset" class="button danger">Restore shop defaults</button></div></div>
+  <p class="notice">Your shop data saves automatically. Export a backup to keep a separate copy.</p></section>
+    <!-- CUSTOMER ACCESS: sign-in and account creation. -->
+  <section id="page-login" class="page auth-page" hidden>
+  <div class="auth-intro"><span class="eyebrow">GOOD FINDS START HERE</span><h1>Your next favorite<br>is a login away.</h1>
+  <p>A little joy, delivered. Make yourself at home.</p><span class="auth-star">✦</span></div>
+  <form id="login-form" class="panel"><span class="eyebrow">YOUR SHOPAY</span>
+  <h2>Hello, good to see you.</h2>
+  <label>Email address<input name="email" type="email" value="alex@shopay.ph" required autocomplete="username"></label>
+  <label>4-digit PIN<input name="pin" type="password" value="1234" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label><button class="button primary wide">Log in ↗</button>
+  <p class="muted small">Sign in to view your account, purchases, and saved offers.</p><a href="#register">Create a customer account</a><a href="admin.html">Seller login ↗</a></form>
+</section>
+  <section id="page-register" class="page narrow" hidden>
+  <form id="register-form" class="panel"><span class="eyebrow">MAKE YOURSELF AT HOME</span><h1>Join the good finds.</h1>
+  <label>Your name<input name="name" required maxlength="60"></label>
+  <label>Email address<input name="email" type="email" required maxlength="100"></label>
+  <label>4-digit PIN<input name="pin" type="password" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label><button class="button primary wide">Create customer account</button>
+  <p class="muted small">Your account keeps your purchases and saved offers together.</p><a href="#login">Already have an account? Log in.</a></form>
+</section>
+  </main>
+  <footer><a class="logo" href="#home">shopay<span class="coral">.</span></a>
+  <p>Good finds. Everyday joy.</p><span>Thoughtful essentials for everyday living.</span><a href="#backup">Your data & backups ↗</a></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript>Shopay needs JavaScript enabled.</noscript>
+</body>
+</html>
+

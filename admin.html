@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shopay · Seller studio</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+  <script src="admin.js" defer></script>
+</head>
+<!-- Shared records require the same browser and static-server origin as index.html. -->
+<body data-mode="admin">
+  <section id="seller-login" class="auth-page admin-auth">
+  <div class="auth-intro"><a class="logo" href="index.html">shopay<span class="coral">.</span></a><span class="eyebrow">THE OTHER SIDE OF A GOOD FIND</span><h1>A little insight.<br>A smarter shop.</h1>
+  <p>From everyday orders to your next inventory decision.</p><span class="auth-star">✦</span></div>
+  <form id="login-form" class="panel"><span class="eyebrow">SELLER STUDIO</span>
+  <h2>Welcome back, seller.</h2>
+  <label>Email address<input name="email" type="email" value="seller@shopay.ph" required autocomplete="username"></label>
+  <label>4-digit PIN<input name="pin" type="password" value="1234" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label><button class="button primary wide">Open seller studio ↗</button>
+  <p class="notice">Manage products, orders, inventory, and shop performance.</p><a href="index.html#login">Customer login ↗</a></form>
+  </section>
+  <div id="seller-app" class="seller-layout" hidden>
+    <aside class="sidebar"><a class="logo" href="#dashboard">shopay<span class="coral">.</span></a><span class="eyebrow">SELLER STUDIO</span>
+  <div class="shop-badge"><b>S</b><span id="sidebar-shop"></span></div>
+      <nav><a href="#dashboard">◫ Overview</a><a href="#products">◇ Products</a><a href="#orders">▣ Orders</a><a href="#inventory">▤ Inventory</a><a href="#analytics">↗ Sales analytics</a><a href="#forecast">⌁ Demand forecasting</a><a href="#vouchers">✦ Vouchers</a><a href="#settings">⚙ Shop settings</a></nav>
+  <div class="sidebar-bottom">
+  <p>A smarter kind of shop.<small>Turn everyday sales into clearer decisions.</small></p><a href="index.html">← Switch to shopping</a><button data-action="logout">Log out</button></div>
+    </aside>
+    <div class="seller-main"><header class="seller-top"><span>Workspace / <b id="workspace-name">Overview</b></span><span class="workspace-label">SHOPAY / SELLER DESK</span></header>
+      <!-- OVERVIEW: metrics use completed orders only. -->
+  <section id="page-dashboard" class="admin-page"><span class="eyebrow">YOUR SHOP AT A GLANCE</span><h1 id="seller-greeting"></h1>
+  <p class="muted">Here’s how your little shop is doing. Last 30 days, including today.</p>
+  <div id="dashboard-kpis" class="kpi-grid"></div>
+  <div class="two-columns">
+  <section class="panel">
+  <h2>A little perspective</h2>
+  <p class="muted">Net product revenue · Last 30 complete days</p>
+  <div id="dashboard-chart"></div></section>
+  <section class="panel">
+  <h2>Your next good move</h2>
+  <div id="attention-list"></div><a href="#forecast" class="button primary">Explore demand ↗</a></section>
+</div>
+  <div class="two-columns space-top">
+  <section class="panel">
+  <h2>The crowd favorites</h2>
+  <div id="dashboard-best"></div></section>
+  <section class="panel">
+  <h2>Stock worth watching</h2>
+  <div id="dashboard-stock"></div></section>
+</div></section>
+      <!-- PRODUCTS: image links are edited in the reusable product dialog. -->
+  <section id="page-products" class="admin-page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">YOUR EVERYDAY COLLECTION</span><h1>Products</h1>
+  <p class="muted">Edits appear in the customer shop.</p></div><button data-admin="new-product" class="button primary">+ Add product</button></div>
+  <div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Sold</th><th>Status</th><th>Actions</th></tr></thead><tbody id="products-table"></tbody></table></div></section>
+  <section id="page-orders" class="admin-page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">FROM YOUR SHOP TO THEIR DOOR</span><h1>Orders</h1>
+  <p class="muted">Only completed orders count as recognized sales.</p></div>
+  <label>Status<select id="order-filter"><option>All</option><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option><option>Completed</option><option>Canceled</option></select></label></div>
+  <div class="panel table-wrap"><table><thead><tr><th>Order / date</th><th>Customer</th><th>Units</th><th>Payable</th><th>Payment</th><th>Status</th><th>Action</th></tr></thead><tbody id="orders-table"></tbody></table></div>
+  <p class="muted small">Showing the 60 most recent matching orders. JSON backups contain all records.</p></section>
+      <!-- INVENTORY: the shared formula in script.js prevents inconsistent recommendations. -->
+  <section id="page-inventory" class="admin-page" hidden><span class="eyebrow">A LITTLE FORESIGHT GOES A LONG WAY</span><h1>Inventory</h1>
+  <p class="notice">ROP = daily forecast × lead time + safety stock. Replenish up to lead time + 14 days of demand + safety stock when stock reaches ROP.</p>
+  <div class="panel table-wrap"><table><thead><tr><th>Product / supplier</th><th>On hand</th><th>Daily / weekly forecast</th><th>Lead / safety</th><th>ROP</th><th>Status</th><th>Suggested qty</th><th>Actions</th></tr></thead><tbody id="inventory-table"></tbody></table></div>
+  <section class="panel space-top">
+  <h2>Recent stock adjustments</h2>
+  <div id="adjustment-list"></div></section>
+</section>
+      <!-- ANALYTICS: day filters affect KPIs; the chart uses labeled complete periods. -->
+  <section id="page-analytics" class="admin-page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">THE STORY BEHIND YOUR SALES</span><h1>Sales analytics</h1></div>
+  <label>Compare<select id="analytics-days"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="180">Last 180 days</option></select></label></div>
+  <div id="analytics-kpis" class="kpi-grid"></div>
+  <section class="panel">
+  <div class="section-heading">
+  <h2>Performance over time</h2>
+  <div class="button-row">
+  <label>Metric<select id="chart-metric"><option value="revenue">Revenue</option><option value="units">Units sold</option></select></label>
+  <label>Grouping<select id="chart-period"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label></div></div>
+  <p id="chart-description" class="muted small"></p>
+  <div id="analytics-chart"></div><details><summary>View chart data</summary>
+  <div id="chart-data" class="table-wrap"></div></details></section>
+  <div class="two-columns space-top">
+  <section class="panel">
+  <h2>Best-selling products</h2>
+  <div id="best-products"></div></section>
+  <section class="panel">
+  <h2>Category performance</h2>
+  <div id="category-performance"></div></section>
+</div>
+  <section class="panel space-top">
+  <h2>Vouchers in the mix</h2>
+  <p id="voucher-summary"></p></section>
+</section>
+      <!-- FORECASTING: SMA and historical holdout accuracy use earlier complete weeks only. -->
+  <section id="page-forecast" class="admin-page" hidden><span class="eyebrow">TURN YESTERDAY INTO A BETTER TOMORROW</span><h1>Demand forecasting</h1>
+  <p class="muted">Simple, explainable forecasts for your next inventory decision.</p>
+  <section class="panel forecast-controls">
+  <label>Product<select id="forecast-product"></select></label>
+  <label>Method<input value="Simple Moving Average" readonly></label>
+  <label>Window<select id="forecast-window"><option value="2">2 weeks</option><option value="3">3 weeks</option><option value="4" selected>4 weeks</option><option value="6">6 weeks</option><option value="8">8 weeks</option><option value="12">12 weeks</option></select></label><button data-admin="save-window" class="button primary">Use for inventory</button></section>
+  <div id="forecast-kpis" class="kpi-grid space-top"></div>
+  <section class="panel">
+  <h2>A look ahead</h2>
+  <p class="muted small">Observed complete weeks · Dashed line is next week’s estimate</p>
+  <div id="forecast-chart"></div></section>
+  <div class="two-columns space-top">
+  <section class="panel">
+  <h2>Simple enough to explain.</h2>
+  <p id="forecast-calculation" class="formula"></p>
+  <p>MAD = mean of |actual − prediction|.</p>
+  <p>MAPE = mean of |actual − prediction| ÷ actual × 100. Zero-actual periods are excluded.</p>
+  <p class="muted small">Each of eight rolling holdouts is predicted using earlier observations only.</p><details><summary>View holdout calculations</summary>
+  <div id="accuracy-table" class="table-wrap"></div></details></section>
+  <section class="panel">
+  <h2>From insight to action</h2>
+  <div id="forecast-decision"></div>
+  <p id="saved-window" class="muted small"></p></section>
+</div>
+  <p class="notice">Sales can understate actual demand during stockouts. This classroom policy does not guarantee forecast accuracy or optimal stock levels. Current partial weeks are excluded.</p></section>
+  <section id="page-vouchers" class="admin-page" hidden>
+  <div class="section-heading">
+  <div><span class="eyebrow">A LITTLE INCENTIVE GOES A LONG WAY</span><h1>Vouchers</h1></div><button data-admin="new-voucher" class="button primary">+ Create voucher</button></div>
+  <div class="panel table-wrap"><table><thead><tr><th>Code</th><th>Discount</th><th>Minimum</th><th>Cap</th><th>Expiry</th><th>Uses left</th><th>Actions</th></tr></thead><tbody id="vouchers-table"></tbody></table></div></section>
+  <section id="page-settings" class="admin-page" hidden><span class="eyebrow">MAKE THE EVERYDAY WORK BETTER</span><h1>Shop settings</h1>
+  <form id="settings-form" class="panel">
+  <div class="two-columns">
+  <label>Shop name<input name="name" required maxlength="60"></label>
+  <label>Tagline<input name="tagline" required maxlength="100"></label>
+  <label>Standard shipping (₱)<input name="standard" type="number" min="0" max="10000" step="0.01" required></label>
+  <label>Express shipping (₱)<input name="express" type="number" min="0" max="10000" step="0.01" required></label></div><button class="button primary">Save settings</button></form>
+  <section class="panel space-top">
+  <h2>Shop data and backups</h2>
+  <p>Import replaces the current local dataset after validation and confirmation.</p>
+  <div class="button-row"><button data-action="export" class="button outlined">Export JSON</button>
+  <label class="button outlined file-label">Import shop data<input id="import-file" type="file" accept=".json,application/json"></label><button data-action="reset" class="button danger">Restore shop defaults</button></div></section>
+  <p class="notice">Shop records save automatically. Export a backup to keep a separate copy.</p></section>
+  <p class="seller-footer">Shopay seller desk · One shop. Clearer decisions.</p>
+    </div>
+  </div>
+  <!-- Reusable forms keep editing simple and avoid creating extra HTML files. -->
+  <dialog id="product-dialog">
+  <form id="product-form"><input name="recordId" type="hidden">
+  <div class="section-heading">
+  <h2 id="product-dialog-title">Add a good find</h2><button type="button" data-admin="close-dialog" aria-label="Close dialog">✕</button></div>
+  <label>Product name<input name="name" required maxlength="100"></label>
+  <div class="two-columns">
+  <label>Category<select name="category"><option>Electronics</option><option>Fashion</option><option>Home & Living</option><option>Beauty</option><option>Sports & Outdoors</option></select></label>
+  <label>Stock<input name="stock" type="number" min="0" max="1000000" step="1" required></label>
+  <label>Selling price (₱)<input name="price" type="number" min="0.01" max="1000000" step="0.01" required></label>
+  <label>Original price (₱)<input name="original" type="number" min="0.01" max="1000000" step="0.01" required></label></div>
+  <label>Image URL (optional)<input name="image" type="url" placeholder="https://example.com/photo.jpg" maxlength="2048"></label>
+  <p class="muted small">Use a direct HTTP/HTTPS image link. An empty or unavailable image uses a built-in fallback.</p>
+  <label>Description<textarea name="description" required maxlength="1500"></textarea></label>
+  <label>Specifications<input name="specs" required maxlength="500"></label>
+  <label>Supplier<input name="supplier" required maxlength="100"></label>
+  <div class="three-columns">
+  <label>Lead time (days)<input name="lead" type="number" min="0" max="365" step="1" required></label>
+  <label>Safety stock<input name="safety" type="number" min="0" max="1000000" step="1" required></label>
+  <label>Min. stock alert<input name="minimum" type="number" min="0" max="1000000" step="1" required></label></div><button class="button primary wide">Save product</button></form>
+</dialog>
+  <dialog id="stock-dialog">
+  <form id="stock-form"><input name="recordId" type="hidden">
+  <div class="section-heading">
+  <h2>A little more in stock</h2><button type="button" data-admin="close-dialog" aria-label="Close dialog">✕</button></div>
+  <p id="stock-product"></p>
+  <label>Quantity to add<input name="qty" type="number" min="1" max="1000000" step="1" required></label><button class="button primary wide">Confirm restock</button></form>
+</dialog>
+  <dialog id="voucher-dialog">
+  <form id="voucher-form"><input name="recordId" type="hidden">
+  <div class="section-heading">
+  <h2>A little extra off</h2><button type="button" data-admin="close-dialog" aria-label="Close dialog">✕</button></div>
+  <label>Code<input name="code" required pattern="[A-Za-z0-9_-]{3,30}" maxlength="30"></label>
+  <label>Discount type<select name="type"><option value="percent">Percentage off</option><option value="fixed">Fixed amount off</option><option value="shipping">Shipping off</option></select></label>
+  <div class="two-columns">
+  <label>Value (% or ₱)<input name="value" type="number" min="0.01" max="100000" step="0.01" required></label>
+  <label>Minimum spend (₱)<input name="min" type="number" min="0" max="1000000" step="0.01" required></label>
+  <label>Cap (₱)<input name="max" type="number" min="0.01" max="100000" step="0.01" required></label>
+  <label>Remaining uses<input name="remaining" type="number" min="0" max="1000000" step="1" required></label></div>
+  <label>Expires on<input name="expires" type="date" required></label><button class="button primary wide">Save voucher</button></form>
+</dialog>
+  <dialog id="order-dialog">
+  <div class="section-heading">
+  <h2>Order details</h2><button data-admin="close-dialog" aria-label="Close dialog">✕</button></div>
+  <div id="order-details"></div>
+  <form id="status-form"><input name="recordId" type="hidden">
+  <label>Move to next status<select name="status"></select></label><button class="button primary wide">Update order status</button></form>
+</dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <noscript>Shopay needs JavaScript enabled.</noscript>
+</body>
+</html>
+
+
