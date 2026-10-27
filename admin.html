@@ -17,7 +17,7 @@
   <h2>Welcome back, seller.</h2>
   <label>Email address<input name="email" type="email" required autocomplete="username"></label>
   <label>4-digit PIN<input name="pin" type="password" pattern="[0-9]{4}" maxlength="4" required autocomplete="off"></label><button class="button primary wide">Open seller studio ↗</button>
-  <p class="notice">Manage products, orders, inventory, and shop performance.</p><a href="index.html#login">Customer login ↗</a></form>
+  <p class="notice">Manage products, orders, inventory, and shop performance.</p><button type="button" data-action="demo-login" class="button outlined wide"><span aria-hidden="true">◉</span> Open the Demo Seller account</button><p class="muted small">Demo login: demo@shopay.ph · PIN 1234</p><a href="index.html#login">Customer login ↗</a></form>
   <details class="panel seller-signup"><summary>New seller? Create an account</summary><form id="seller-register-form"><label>Your name<input name="name" required maxlength="60"></label><label>Email address<input name="email" type="email" required maxlength="100"></label><label>4-digit PIN<input name="pin" type="password" pattern="[0-9]{4}" maxlength="4" required></label><label id="starter-choice">Starting catalog<select name="catalog"><option value="starter">Add the 15 curated products</option><option value="empty">Start with an empty catalog</option></select></label><p class="muted small">Seller accounts manage the same Shopay store.</p><button class="button primary wide">Create seller account</button></form></details>
   </section>
   <div id="seller-app" class="seller-layout" hidden>
@@ -27,10 +27,10 @@
   <div class="sidebar-bottom">
   <p>A smarter kind of shop.<small>Turn everyday sales into clearer decisions.</small></p><a href="index.html">← Switch to shopping</a><button data-action="logout">Log out</button></div>
     </aside>
-    <div class="seller-main"><header class="seller-top"><span>Workspace / <b id="workspace-name">Overview</b></span><span class="workspace-label">SHOPAY / SELLER DESK</span></header>
+    <div class="seller-main"><header class="seller-top"><span>Workspace / <b id="workspace-name">Overview</b></span><span id="workspace-label" class="workspace-label">SELLER ACCOUNT</span></header>
       <!-- OVERVIEW: metrics use completed orders only. -->
   <section id="page-dashboard" class="admin-page"><span class="eyebrow">YOUR SHOP AT A GLANCE</span><h1 id="seller-greeting"></h1>
-  <p class="muted">Here’s how your little shop is doing. Last 30 days, including today.</p>
+  <p class="muted">A clear view of your sales and stock.</p>
   <div id="dashboard-kpis" class="kpi-grid"></div>
   <div class="two-columns">
   <section class="panel">
@@ -62,7 +62,7 @@
   <label>Status<select id="order-filter"><option>All</option><option>Pending</option><option>Processing</option><option>Shipped</option><option>Delivered</option><option>Completed</option><option>Canceled</option></select></label></div>
   <div class="panel table-wrap"><table><thead><tr><th>Order / date</th><th>Customer</th><th>Units</th><th>Payable</th><th>Payment</th><th>Status</th><th>Action</th></tr></thead><tbody id="orders-table"></tbody></table></div>
   <p class="muted small">Showing the 60 most recent matching orders. JSON backups contain all records.</p></section>
-  <section id="page-messages" class="admin-page" hidden><span class="eyebrow">CUSTOMER CARE</span><h1>Messages</h1><label>Customer<select id="chat-customer"></select></label><div id="seller-chat" class="chat-thread panel"></div><form id="seller-chat-form" class="panel chat-form"><input name="customerId" type="hidden"><label>Reply<textarea name="text" required maxlength="1000"></textarea></label><button class="button primary">Send reply</button></form></section>
+  <section id="page-messages" class="admin-page" hidden><span class="eyebrow">CUSTOMER CARE</span><h1>Messages</h1><div class="chat-box panel"><header class="chat-heading"><span id="seller-chat-avatar" class="chat-avatar" aria-hidden="true">S</span><div><strong id="seller-chat-title">Shopay</strong><small id="seller-chat-subtitle">Choose a customer</small></div><label class="chat-customer">Customer<select id="chat-customer"></select></label></header><div id="seller-chat" class="chat-thread" role="log" aria-live="polite"></div><form id="seller-chat-form" class="chat-composer"><input name="customerId" type="hidden"><label class="sr-only" for="seller-chat-text">Reply to customer</label><textarea id="seller-chat-text" name="text" placeholder="Write a reply…" required maxlength="1000"></textarea><button class="button primary" aria-label="Send reply"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m3 11 18-8-8 18-2-8-8-2Zm8 2 10-10"/></svg></button></form></div></section>
       <!-- INVENTORY: the shared formula in script.js prevents inconsistent recommendations. -->
   <section id="page-inventory" class="admin-page" hidden><span class="eyebrow">A LITTLE FORESIGHT GOES A LONG WAY</span><h1>Inventory</h1>
   <p class="notice">Restock when stock reaches its reorder point. Suggestions use completed sales, supplier lead time, and your safety stock.</p>
@@ -100,9 +100,9 @@
 </section>
       <!-- FORECASTING: SMA and historical holdout accuracy use earlier complete weeks only. -->
   <section id="page-forecast" class="admin-page" hidden><span class="eyebrow">TURN YESTERDAY INTO A BETTER TOMORROW</span><h1>Demand forecasting</h1>
-  <p class="muted">See expected demand and the next stock action.</p>
+  <p class="muted">Use completed sales to estimate demand and decide when to restock.</p>
   <section class="panel forecast-controls"><label>Product<select id="forecast-product"></select></label><label>Weeks to use<select id="forecast-window"><option value="2">2 weeks</option><option value="4" selected>4 weeks</option><option value="6">6 weeks</option><option value="8">8 weeks</option></select></label><button data-admin="save-window" class="button primary">Save forecast setting</button></section>
-  <div id="forecast-kpis" class="kpi-grid space-top"></div><section class="panel space-top"><h2>Recommended next step</h2><p id="forecast-action" class="muted"></p><button id="forecast-restock" data-admin="restock-forecast" class="button primary">Restock this product</button></section></section>
+  <div id="forecast-kpis" class="kpi-grid space-top"></div><section class="panel space-top"><h2>Sales history · last 26 complete weeks</h2><div id="forecast-chart"></div></section><section class="panel space-top"><h2>Recommended next step</h2><p id="forecast-action" class="muted"></p><button id="forecast-restock" data-admin="restock-forecast" class="button primary">Restock this product</button></section></section>
   <section id="page-vouchers" class="admin-page" hidden>
   <div class="section-heading">
   <div><span class="eyebrow">A LITTLE INCENTIVE GOES A LONG WAY</span><h1>Vouchers</h1></div><button data-admin="new-voucher" class="button primary">+ Create voucher</button></div>

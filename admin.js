@@ -3,6 +3,10 @@
    Sales are recognized only at Completed; the current partial week is not forecast history. */
 'use strict';
 let inventoryCacheState, inventoryCacheDay = '', inventoryCache = new Map();
+// Seller pages share one store, but only show records owned by the signed-in seller.
+function sellerId() { return getCurrentUser()?.id||''; }
+function sellerProducts() { return store.products.filter(p=>p.sellerId===sellerId()); }
+function sellerOrder(o) { return o.items.some(i=>i.sellerId===sellerId()); }
 // Cache recommendations until data or the calendar date changes.
 function getInventorySummary(product) {
   const today=dateKey(new Date());if(inventoryCacheState!==store||inventoryCacheDay!==today){inventoryCacheState=store;
@@ -45,43 +49,43 @@ function initializeAdmin() {
   const section=location.hash.slice(1)||'dashboard',valid=['dashboard','products','orders','messages','inventory','analytics','forecast','vouchers','settings'],page=valid.includes(section)?section:'dashboard';
   document.querySelectorAll('.admin-page').forEach(el=>el.hidden=el.id!=='page-'+page);
   document.querySelectorAll('.sidebar nav a').forEach(link=>link.classList.toggle('active',link.hash==='#'+page));
-  byId('sidebar-shop').textContent=store.shop.name;byId('workspace-name').textContent=page==='dashboard'?'Overview':page[0].toUpperCase()+page.slice(1);
+  byId('sidebar-shop').textContent=getCurrentUser().name;byId('workspace-label').textContent=getCurrentUser().isDemo?'DEMO SELLER':'SELLER ACCOUNT';byId('workspace-name').textContent=page==='dashboard'?'Overview':page[0].toUpperCase()+page.slice(1);
   byId('seller-greeting').textContent=`Good day, ${getCurrentUser().name.split(' ')[0]}.`;
   const selected=byId('forecast-product').value;
-  byId('forecast-product').innerHTML=store.products.map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
-  if(store.products.some(p=>p.id===selected))byId('forecast-product').value=selected;
+  byId('forecast-product').innerHTML=sellerProducts().map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+  if(sellerProducts().some(p=>p.id===selected))byId('forecast-product').value=selected;
   if(!byId('forecast-window').dataset.ready){byId('forecast-window').value=store.settings.window;byId('forecast-window').dataset.ready='1';}
   const views={dashboard:renderSellerDashboard,products:renderSellerProducts,orders:renderSellerOrders,messages:renderSellerMessages,inventory:renderSellerInventory,analytics:renderSellerAnalytics,forecast:renderSellerForecast,vouchers:renderSellerVouchers,settings:renderSellerSettings};views[page]();window.scrollTo(0,0);
 }
 // Combine completed-sales KPIs, historical revenue, pending orders, and stock alerts.
 function renderSellerDashboard() {
-  const current=metrics(store,30),previous=metrics(store,30,30),low=store.products.filter(p=>p.active&&getInventorySummary(p).low),pending=store.orders.filter(o=>o.status==='Pending').length;
-  byId('dashboard-kpis').innerHTML=renderKpis(current,previous);byId('dashboard-chart').innerHTML=renderChart(series(store,null,'daily',30));
+  const current=metrics(store,30,0,new Date(),sellerId()),previous=metrics(store,30,30,new Date(),sellerId()),products=sellerProducts(),low=products.filter(p=>p.active&&getInventorySummary(p).low),pending=store.orders.filter(o=>o.status==='Pending'&&sellerOrder(o)).length;
+  byId('dashboard-kpis').innerHTML=renderKpis(current,previous);byId('dashboard-chart').innerHTML=renderChart(series(store,null,'daily',30,new Date(),sellerId()));
   byId('dashboard-best').innerHTML=renderRankingBars(current.orders);
-  byId('attention-list').innerHTML=summaryLine('Orders to process',pending)+summaryLine('Stock alerts',low.length)+summaryLine('Active products',store.products.filter(p=>p.active).length)+summaryLine('Total inventory',store.products.reduce((n,p)=>n+p.stock,0));
+  byId('attention-list').innerHTML=summaryLine('Orders to process',pending)+summaryLine('Stock alerts',low.length)+summaryLine('Active products',products.filter(p=>p.active).length)+summaryLine('Total inventory',products.reduce((n,p)=>n+p.stock,0));
   byId('dashboard-stock').innerHTML=low.slice(0,5).map(p=>`<div class="stock-row"><div><strong>${escapeHtml(p.name)}</strong>
     <small>${p.stock} on hand · ROP ${getInventorySummary(p).rop}</small></div>${actionButton('Restock','restock',p.id)}</div>`).join('')||'<p class="green">Inventory looks healthy.</p>';
 }
 // Render catalog rows with current stock, completed sales, and edit actions.
-function renderSellerProducts() { byId('products-table').innerHTML=store.products.map(p=>`<tr><td><div class="table-product">
-    <img loading="lazy" decoding="async" src="${escapeHtml(getProductImage(p))}" alt=""><strong>${escapeHtml(p.name)}</strong></div></td><td>${escapeHtml(p.category)}</td><td>${formatCurrency(p.price)}</td><td>${p.stock}</td><td>${getUnitsSold(p.id)}</td><td>${renderStatusBadge(p.active?'Active':'Inactive')}</td><td>${actionButton('Edit','edit-product',p.id)}${actionButton(p.active?'Deactivate':'Activate','toggle-product',p.id)}${actionButton('Delete','delete-product',p.id)}</td></tr>`).join(''); }
+function renderSellerProducts() { byId('products-table').innerHTML=sellerProducts().map(p=>`<tr><td><div class="table-product">
+    <img loading="lazy" decoding="async" src="${escapeHtml(getProductImage(p))}" alt=""><span><strong>${escapeHtml(p.name)}</strong><small>Sold by ${escapeHtml(getCurrentUser().name)}</small></span></div></td><td>${escapeHtml(p.category)}</td><td>${formatCurrency(p.price)}</td><td>${p.stock}</td><td>${getUnitsSold(p.id)}</td><td>${renderStatusBadge(p.active?'Active':'Inactive')}</td><td>${actionButton('Edit','edit-product',p.id)}${actionButton(p.active?'Deactivate':'Activate','toggle-product',p.id)}${actionButton('Delete','delete-product',p.id)}</td></tr>`).join('')||'<tr><td colspan="7">No products yet. Add your first product to begin.</td></tr>'; }
 // Filter by status and show the sixty most recent matching order snapshots.
-function renderSellerOrders() { const filter=byId('order-filter').value,orders=store.orders.filter(o=>o.shopId===store.shop.id&&(filter==='All'||o.status===filter)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+function renderSellerOrders() { const filter=byId('order-filter').value,orders=store.orders.filter(o=>sellerOrder(o)&&(filter==='All'||o.status===filter)).sort((a,b)=>new Date(b.date)-new Date(a.date));
   byId('orders-table').innerHTML=orders.slice(0,60).map(o=>`<tr><td><strong>${escapeHtml(o.id.slice(0,18))}</strong>
     <small>${formatDate(o.date)}</small></td><td>${escapeHtml(o.customer)}</td><td>${o.items.reduce((n,i)=>n+i.qty,0)}</td><td>${formatCurrency(o.total)}</td><td>${escapeHtml(o.payment)}</td><td>${renderStatusBadge(o.status)}</td><td>${actionButton('View order','order-detail',o.id)}</td></tr>`).join('')||'<tr><td colspan="7">No orders with this status.</td></tr>'; }
 // Show the shared forecast policy beside current stock and adjustment history.
 function renderSellerInventory() {
-  byId('inventory-table').innerHTML=store.products.filter(p=>p.active).map(p=>{const v=getInventorySummary(p);
+  byId('inventory-table').innerHTML=sellerProducts().filter(p=>p.active).map(p=>{const v=getInventorySummary(p);
   return `<tr><td><strong>${escapeHtml(p.name)}</strong>
     <small>${escapeHtml(p.supplier)}</small></td><td>${p.stock}</td><td>${v.noData?'No sales yet':`${formatNumber(v.daily)} / ${formatNumber(v.weekly)}`}</td><td>${p.lead} days / ${p.safety}</td><td>${v.noData?'—':v.rop}</td><td>${renderStatusBadge(v.noData?'No sales':p.stock<=v.rop?'Reorder':v.low?'Low':'Healthy')}</td><td>${v.noData?'—':v.reorder||'—'}</td><td>${actionButton('Restock','restock',p.id)}${actionButton('Parameters','edit-product',p.id)}</td></tr>`;}).join('');
-  byId('adjustment-list').innerHTML=store.adjustments.slice().reverse().slice(0,20).map(a=>`<div class="adjustment-row">
+  byId('adjustment-list').innerHTML=store.adjustments.filter(a=>sellerProducts().some(p=>p.id===a.productId)).slice().reverse().slice(0,20).map(a=>`<div class="adjustment-row">
     <span>${formatDate(a.date)} · ${escapeHtml(store.products.find(p=>p.id===a.productId)?.name||a.productId)}</span><strong>${a.qty>0?'+':''}${a.qty}</strong>
     <small>${escapeHtml(a.reason)}</small></div>`).join('');
 }
 // Calculate the series once and reuse it for both the graph and its accessible data table.
 function renderSellerAnalytics() {
-  const days=+byId('analytics-days').value,current=metrics(store,days),previous=metrics(store,days,days),period=byId('chart-period').value,key=byId('chart-metric').value,count=period==='daily'?Math.min(days,30):period==='weekly'?Math.min(26,Math.ceil(days/7)):6;
-  const data=series(store,null,period,count);byId('analytics-kpis').innerHTML=renderKpis(current,previous);
+  const days=+byId('analytics-days').value,current=metrics(store,days,0,new Date(),sellerId()),previous=metrics(store,days,days,new Date(),sellerId()),period=byId('chart-period').value,key=byId('chart-metric').value,count=period==='daily'?Math.min(days,30):period==='weekly'?Math.min(26,Math.ceil(days/7)):6;
+  const data=series(store,null,period,count,new Date(),sellerId());byId('analytics-kpis').innerHTML=renderKpis(current,previous);
   byId('analytics-chart').innerHTML=renderChart(data,key);
   byId('chart-description').textContent=`${count} complete ${period==='daily'?'days':period==='weekly'?'weeks':'months'}. Current partial period excluded. Revenue includes order discounts and excludes delivery.`;
   byId('chart-data').innerHTML=`<table><thead><tr><th>Starting</th><th>Revenue</th><th>Units</th><th>Completed orders</th></tr></thead>
@@ -92,11 +96,12 @@ function renderSellerAnalytics() {
 // Show customer conversations and keep the selected thread open after refreshes.
 function renderSellerMessages() { const select=byId('chat-customer'),selected=select.value,customers=store.users.filter(u=>u.role==='customer'&&store.chats.some(m=>m.userId===u.id));
   select.innerHTML=customers.map(u=>`<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');if(customers.some(u=>u.id===selected))select.value=selected;
-  const id=select.value;byId('seller-chat-form').elements.customerId.value=id||'';byId('seller-chat').innerHTML=id?renderChatMessages(id):'<p class="muted">Customer messages will appear here.</p>'; }
+  const id=select.value,user=currentUser(store,id);byId('seller-chat-form').elements.customerId.value=id||'';byId('seller-chat-title').textContent=store.shop.name;byId('seller-chat-avatar').textContent=store.shop.name[0]||'S';byId('seller-chat-subtitle').textContent=user?`Conversation with ${user.name}`:'Choose a customer to reply';byId('seller-chat').innerHTML=id?renderChatMessages(id,true):'<p class="muted">Customer messages will appear here.</p>';byId('seller-chat').scrollTop=byId('seller-chat').scrollHeight; }
 // The preview uses the same replenishment function as inventory; no duplicate ROP formula.
-function renderSellerForecast() { const p=store.products.find(p=>p.id===byId('forecast-product').value),button=byId('forecast-restock');
-  if(!p){byId('forecast-kpis').innerHTML='';byId('forecast-action').textContent='Add a product to see demand insights.';button.disabled=true;return;}
-  const f=forecast(store,p.id,+byId('forecast-window').value),hasSales=f.history.some(w=>w.units);button.dataset.id=p.id;button.disabled=!hasSales;
+function renderSellerForecast() { const p=sellerProducts().find(p=>p.id===byId('forecast-product').value),button=byId('forecast-restock');
+  if(!p){byId('forecast-kpis').innerHTML='';byId('forecast-chart').innerHTML='';byId('forecast-action').textContent='Add a product to see demand insights.';button.disabled=true;return;}
+  const f=forecast(store,p.id,+byId('forecast-window').value,new Date(),sellerId()),hasSales=f.history.some(w=>w.units);button.dataset.id=p.id;button.disabled=!hasSales;
+  byId('forecast-chart').innerHTML=renderChart(f.history,'units',f.future);
   if(!hasSales){byId('forecast-kpis').innerHTML=renderKpiCard('Sales recorded','0 units','Completed orders')+renderKpiCard('Current stock',p.stock,'Units on hand')+renderKpiCard('Next action','Wait for sales','Recommendations start after your first order');byId('forecast-action').textContent='After your first completed order, Shopay will estimate next week’s demand and recommend a restock amount.';return;}
   const v=replenishment(p,f.future);byId('forecast-kpis').innerHTML=renderKpiCard('Next week forecast',formatNumber(f.future)+' units',`${byId('forecast-window').value}-week average`)+renderKpiCard('Stock on hand',p.stock,`Reorder point: ${v.rop}`)+renderKpiCard('Suggested reorder',v.reorder+' units',`Target stock: ${v.target}`);
   byId('forecast-action').textContent=v.reorder?`Order ${v.reorder} units of ${p.name} to reach ${v.target} units, including lead time and safety stock.`:`No restock needed. ${p.stock} units are above the ${v.rop}-unit reorder point.`; }
@@ -144,7 +149,7 @@ function handleAdminSubmit(event) {
     if(form.id==='seller-chat-form'){const user=currentUser(store,d.customerId);if(!user||user.role!=='customer')throw Error('Choose a customer conversation first.');updateState(data=>addChatMessage(data,user.id,d.text,getCurrentUser()));form.reset();initializeAdmin();return;}
     if(form.id==='product-form'){if(d.image&&!normalizeImageSource(d.image))throw Error('Use a direct HTTP or HTTPS image URL.');
   if(+d.original<+d.price)throw Error('Original price must be at least the selling price.');
-  updateState(data=>{const old=data.products.find(p=>p.id===d.recordId),p={...(old||{id:uid('p'),shopId:data.shop.id,active:true,flash:false,created:new Date().toISOString()}),name:d.name.trim(),category:d.category,price:+d.price,original:+d.original,stock:+d.stock,image:d.image.trim(),variants:d.variants.trim(),description:d.description.trim(),specs:d.specs.trim(),supplier:d.supplier.trim(),lead:+d.lead,safety:+d.safety,minimum:+d.minimum};
+  updateState(data=>{const old=data.products.find(p=>p.id===d.recordId),p={...(old||{id:uid('p'),shopId:data.shop.id,sellerId:sellerId(),active:true,flash:false,created:new Date().toISOString()}),name:d.name.trim(),category:d.category,price:+d.price,original:+d.original,stock:+d.stock,image:d.image.trim(),variants:d.variants.trim(),description:d.description.trim(),specs:d.specs.trim(),supplier:d.supplier.trim(),lead:+d.lead,safety:+d.safety,minimum:+d.minimum};
   if(!p.name)throw Error('Enter a product name.');const difference=p.stock-(old?.stock||0);
   if(old&&difference)data.adjustments.push({id:uid('ADJ'),productId:p.id,qty:difference,date:new Date().toISOString(),reason:'Manual product stock edit'});
   if(old)data.products[data.products.findIndex(p=>p.id===d.recordId)]=p;else data.products.push(p);

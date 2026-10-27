@@ -21,8 +21,7 @@ function formatNumber(value) { return NUMBER_FORMAT.format(value || 0); }
 // Turn a saved timestamp into a readable Philippine calendar date.
 function formatDate(value) { return new Date(value).toLocaleDateString('en-PH',{month:'short',day:'numeric',year:'numeric'}); }
 // Create a local YYYY-MM-DD key for day, week, and expiry comparisons.
-function dateKey(value) { const d = new Date(value);
-   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function dateKey(value) { const d=new Date(value);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 // Give each new local record a unique identifier and readable prefix.
 function uid(prefix) { return prefix + '-' + (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2)); }
 // Named fields make the initial catalog easy to explain and edit. No positional database rows.
@@ -49,12 +48,20 @@ function normalizeImageSource(source) { if(/^data:image\/(jpeg|png|webp);base64,
 // A built-in SVG keeps the five-file site presentable when a photo cannot load.
 function fallbackImage(name = 'shopay') { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="500" height="430"><rect width="500" height="430" fill="#e5ecdf"/><circle cx="250" cy="195" r="113" fill="#d1ddc8"/><path d="M192 170h116l15 133H177l15-133m23 0v-25a35 35 0 0 1 70 0v25" fill="none" stroke="#708469" stroke-width="9"/><text x="250" y="365" text-anchor="middle" fill="#405c48" font-family="Georgia" font-size="22">${escapeHtml(name.slice(0,30))}</text></svg>`); }
 // Use the seller image URL, a catalog photo, or the built-in offline fallback.
-function getProductImage(product) { const image=normalizeImageSource(product.image);if(image)return image;
-  const initial=INITIAL_PRODUCTS.find(p=>p.id===product.id);
-  return initial?`https://images.unsplash.com/photo-${initial.photo}?w=640&auto=format&fit=crop&q=80`:fallbackImage(product.name); }
+function getProductImage(product) { const image=normalizeImageSource(product.image);if(image)return image;const initial=INITIAL_PRODUCTS.find(p=>p.id===product.id);return initial?`https://images.unsplash.com/photo-${initial.photo}?w=640&auto=format&fit=crop&q=80`:fallbackImage(product.name); }
 // Prepare the catalog, account, order history, and opening inventory.
-function seed() { return {version:1,shop:{id:'shopay-studio',name:'Shopay',tagline:'Good finds. Everyday joy.'},users:[],products:[],orders:[],carts:{},vouchers:[],installments:[],adjustments:[],reviews:[],visits:[],chats:[],settings:{standard:49,express:99,courier:'J&T Express',window:4}}; }
-function starterProducts(shopId) { return INITIAL_PRODUCTS.map(p=>({...p,shopId,image:`https://images.unsplash.com/photo-${p.photo}?w=640&auto=format&fit=crop&q=80`,variants:'',active:true,description:'A thoughtful everyday essential from the Shopay collection.',specs:'Standard edition',supplier:'Shopay Supply Co.',lead:7,safety:10,minimum:5,flash:['p01','p03','p05'].includes(p.id),created:new Date().toISOString()})); }
+function seed() { const data={version:1,shop:{id:'shopay-studio',name:'Shopay',tagline:'Good finds. Everyday joy.'},users:[],products:[],orders:[],carts:{},vouchers:[],installments:[],adjustments:[],reviews:[],visits:[],chats:[],settings:{standard:49,express:99,courier:'J&T Express',window:4}};addDemoSeller(data);return data; }
+function starterProducts(sellerId) { return INITIAL_PRODUCTS.map(p=>({...p,id:sellerId==='seller-demo'?`demo-${p.id}`:`${sellerId}-${p.id}`,sellerId,isDemo:sellerId==='seller-demo',shopId:'shopay-studio',image:`https://images.unsplash.com/photo-${p.photo}?w=640&auto=format&fit=crop&q=80`,variants:'',active:true,description:'A thoughtful everyday essential from the Shopay collection.',specs:'Standard edition',supplier:'Shopay Supply Co.',lead:7,safety:10,minimum:5,flash:['p01','p03','p05'].includes(p.id),created:new Date().toISOString()})); }
+// Reuse the earlier daily-demand pattern: popular items, quiet items, weekend lifts, and gradual growth.
+function addDemoSeller(data) {
+  if(!data.users.some(u=>u.id==='seller-demo'))data.users.push({id:'seller-demo',name:'Demo Seller',email:'demo@shopay.ph',pin:'1234',role:'seller',addresses:[],claimed:[],isDemo:true});if(!data.users.some(u=>u.id==='customer-demo'))data.users.push({id:'customer-demo',name:'Demo Buyer',email:'buyer@shopay.ph',pin:'2468',role:'customer',addresses:['12 Acacia Street, Quezon City'],claimed:[]});
+  const buyer=data.users.find(u=>u.id==='customer-demo');if(!buyer.addresses.length)buyer.addresses.push('12 Acacia Street, Quezon City');
+  if(!data.products.some(p=>p.sellerId==='seller-demo'))data.products.push(...starterProducts('seller-demo'));data.products.filter(p=>p.sellerId==='seller-demo'&&/^demo-p\d{2}$/.test(p.id)).forEach(p=>p.isDemo=true);
+  if(data.demoVersion!==4){data.orders=data.orders.filter(o=>!o.isDemo);data.demoVersion=4;}if(data.orders.some(o=>o.isDemo))return;
+  const products=data.products.filter(p=>p.sellerId==='seller-demo'),start=new Date();start.setDate(start.getDate()-((start.getDay()+6)%7));start.setHours(12,0,0,0);
+  for(let day=182;day>=1;day--){const date=new Date(start);date.setDate(date.getDate()-day);const items=products.map((p,n)=>{const age=182-day,qty=Math.max(0,Math.round((n<4?1.9:.7)+Math.sin(age*.53+n*1.7)+(date.getDay()===6?.9:0)+age/400));return {productId:p.id,sellerId:'seller-demo',shopId:data.shop.id,name:p.name,category:p.category,price:p.price,qty,image:p.image,variant:'',net:p.price*qty};}).filter(i=>i.qty);
+    const total=items.reduce((sum,i)=>sum+i.net,0),stamp=date.toISOString();data.orders.push({id:`SP-${dateKey(date)}`,userId:'customer-demo',customer:'Demo Buyer',shopId:data.shop.id,date:stamp,completedAt:stamp,status:'Completed',address:buyer.addresses[0],payment:'E-Wallet',shippingOption:'standard',subtotal:total,discount:0,shipping:0,shippingDiscount:0,total,vouchers:[],restored:false,isDemo:true,items});}
+}
 // Validate imported or changed records before any LocalStorage replacement.
 function validate(data) {
   if (!data || data.version!==1 || !data.shop || !data.carts || !data.settings || !['users','products','orders','vouchers','installments','adjustments','reviews','visits','chats'].every(k=>Array.isArray(data[k]))) throw Error('Invalid Shopay backup structure.');
@@ -72,13 +79,14 @@ function validate(data) {
 }
 function migrateShopCopy(data) {
   data.visits??=[];data.chats??=[];data.settings.courier??='J&T Express';
-  data.orders=data.orders.filter(o=>!o.seeded&&!o.synthetic&&o.userId!=='customer-demo'&&!/^SP-\d{4}-\d{2}-\d{2}$/.test(o.id||'')&&o.id!=='SP-LATER-001');
+  data.orders=data.orders.filter(o=>o.isDemo||(!o.seeded&&!o.synthetic&&o.userId!=='customer-demo'&&!/^SP-\d{4}-\d{2}-\d{2}$/.test(o.id||'')&&o.id!=='SP-LATER-001'));
   data.reviews=data.reviews.filter(r=>!r.seeded&&!r.synthetic&&r.userId!=='customer-demo'&&r.id!=='r1');
   data.installments=data.installments.filter(l=>!l.seeded&&!l.synthetic&&l.userId!=='customer-demo'&&l.id!=='SL-001'&&l.id!=='SL-DEMO-001');
   data.adjustments=data.adjustments.filter(a=>!String(a.id).startsWith('opening-')&&!String(a.reason).startsWith('Opening stock'));
   data.vouchers=data.vouchers.filter(v=>!['v1','v2','v3'].includes(v.id)&&!v.seeded);
   if(data.seededAt)data.products=data.products.filter(p=>!/^p\d{2}$/.test(p.id)||Date.parse(data.seededAt)-Date.parse(p.created)<180*86400000);
-  data.products.forEach(p=>{p.variants??='';});data.users=data.users.filter(u=>!['seller-demo','customer-demo'].includes(u.id));
+  data.products.forEach(p=>{p.variants??='';p.sellerId??=data.users.find(u=>u.role==='seller'&&u.id!=='seller-demo')?.id||'seller-demo';});
+  data.orders.forEach(o=>o.items.forEach(i=>{i.sellerId??=data.products.find(p=>p.id===i.productId)?.sellerId||'seller-demo';}));addDemoSeller(data);
   Object.keys(data.carts).forEach(id=>{if(!data.users.some(u=>u.id===id))delete data.carts[id];else data.carts[id]=data.carts[id].filter(i=>data.products.some(p=>p.id===i.productId)).map(i=>({...i,variant:i.variant||''}));});
   [...data.orders,...data.reviews,...data.installments].forEach(row=>{delete row.seeded;delete row.synthetic;});delete data.seededAt;return data;
 }
@@ -129,7 +137,7 @@ function checkout(data, id, options) {
   const order={id:uid('SP'),token:options.token,userId:id,customer:user.name,shopId:data.shop.id,date:new Date().toISOString(),completedAt:null,status:'Pending',address:options.address.trim(),payment:options.payment,shippingOption:options.shipping||'standard',subtotal:q.subtotal,discount:q.discount,shipping:q.shipping,shippingDiscount:q.shippingDiscount,total:q.total,vouchers:q.vouchers.map(v=>v.code),restored:false,items:[]}; let allocated=0;
   q.rows.forEach((p,index)=>{const line=p.price*p.qty, reduction=index===q.rows.length-1?money(q.discount-allocated):money(q.discount*line/q.subtotal);
    allocated=money(allocated+reduction);
-   order.items.push({productId:p.id,shopId:p.shopId,name:p.name,category:p.category,price:p.price,qty:p.qty,image:p.image,variant:p.variant,net:money(line-reduction)});
+   order.items.push({productId:p.id,sellerId:p.sellerId,shopId:p.shopId,name:p.name,category:p.category,price:p.price,qty:p.qty,image:p.image,variant:p.variant,net:money(line-reduction)});
    data.products.find(item=>item.id===p.id).stock-=p.qty;});
   q.vouchers.forEach(v=>v.remaining--); data.orders.push(order); data.carts[id]=cart(data,id).filter(i=>!i.selected);
   if(options.payment==='ShopayLater') data.installments.push({id:uid('SL'),orderId:order.id,userId:id,principal:q.total,remaining:q.total,months:+options.months,monthly:money(q.total/+options.months),payments:[],date:order.date}); return order;
@@ -147,21 +155,21 @@ function repay(data,userId,id) { const l=data.installments.find(l=>l.id===id&&l.
 function restock(data,id,qty) { const p=data.products.find(p=>p.id===id); if(!p||!Number.isInteger(qty)||qty<=0)throw Error('Enter a positive whole quantity.');
    p.stock+=qty; data.adjustments.push({id:uid('ADJ'),productId:id,qty,date:new Date().toISOString(),reason:'Manual restock'}); } // Keep adjustment history.
 // Group completed snapshots into consecutive complete periods; missing sales remain zero.
-function series(data,productId,period='weekly',count=26,now=new Date()) {
+function series(data,productId,period='weekly',count=26,now=new Date(),sellerId='') {
   function periodStart(value) { const d=new Date(value); d.setHours(0,0,0,0);
    if(period==='weekly')d.setDate(d.getDate()-((d.getDay()+6)%7)); if(period==='monthly')d.setDate(1); return d; } // Calendar boundary.
   function shiftPeriod(value,offset) { const d=new Date(value); if(period==='monthly')d.setMonth(d.getMonth()+offset);
    else d.setDate(d.getDate()+offset*(period==='weekly'?7:1)); return d; } // Whole-period movement.
   const start=periodStart(now), buckets=Array.from({length:count},(_,i)=>({date:dateKey(shiftPeriod(start,i-count)),end:dateKey(shiftPeriod(start,i-count+1)),units:0,revenue:0,orders:0})), lookup=new Map(buckets.map(b=>[b.date,b]));
   data.orders.filter(o=>o.shopId===data.shop.id&&o.status==='Completed').forEach(o=>{const b=lookup.get(dateKey(periodStart(o.completedAt||o.date))); if(!b)return;
-   const items=o.items.filter(i=>!productId||i.productId===productId); items.forEach(i=>{b.units+=i.qty;
+   const items=o.items.filter(i=>(!productId||i.productId===productId)&&(!sellerId||i.sellerId===sellerId)); items.forEach(i=>{b.units+=i.qty;
   b.revenue=money(b.revenue+i.net);}); if(items.length)b.orders++;}); return buckets;
 }
 function predict(values,windowSize=4) { if(values.length<windowSize)return null;
    return values.slice(-windowSize).reduce((sum,value)=>sum+value,0)/windowSize; } // SMA = sum / number of periods.
 // Rolling holdouts use earlier observations only. Zero actuals are excluded from MAPE.
-function forecast(data,id,windowSize=data.settings.window,now=new Date()) {
-  const history=series(data,id,'weekly',26,now), values=history.map(b=>b.units), errors=[];
+function forecast(data,id,windowSize=data.settings.window,now=new Date(),sellerId='') {
+  const history=series(data,id,'weekly',26,now,sellerId), values=history.map(b=>b.units), errors=[];
   for(let i=Math.max(windowSize,values.length-8);i<values.length;i++){const predicted=predict(values.slice(0,i),windowSize);
   errors.push({actual:values[i],predicted,error:Math.abs(values[i]-predicted)});}
   const nonzero=errors.filter(e=>e.actual!==0);
@@ -171,13 +179,13 @@ function replenishment(product,weeklyDemand) { const daily=weeklyDemand/7, rop=c
    return {weekly:weeklyDemand,daily,rop,target,reorder:product.stock<=rop?Math.max(0,target-product.stock):0,low:product.stock<=Math.max(rop,product.minimum)}; } // One shared stock policy.
 function inventory(data,product) { const weeks=series(data,product.id,'weekly',data.settings.window).map(b=>b.units);
   return weeks.some(Boolean)?replenishment(product,predict(weeks,data.settings.window)):{...replenishment(product,0),noData:true,reorder:0}; } // No sales means no forecast.
-function metrics(data,days=30,offset=0,now=new Date()) { const end=new Date(now);end.setHours(23,59,59,999);
+function metrics(data,days=30,offset=0,now=new Date(),sellerId='') { const end=new Date(now);end.setHours(23,59,59,999);
   end.setDate(end.getDate()-offset);const start=new Date(end);start.setDate(start.getDate()-days+1);start.setHours(0,0,0,0);
-  const orders=data.orders.filter(o=>o.shopId===data.shop.id&&o.status==='Completed'&&new Date(o.completedAt||o.date)>=start&&new Date(o.completedAt||o.date)<=end), units=orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.qty,0),0), revenue=money(orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.net,0),0));
+  const orders=data.orders.filter(o=>o.shopId===data.shop.id&&o.status==='Completed'&&new Date(o.completedAt||o.date)>=start&&new Date(o.completedAt||o.date)<=end).map(o=>({...o,items:o.items.filter(i=>!sellerId||i.sellerId===sellerId)})).filter(o=>o.items.length), units=orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.qty,0),0), revenue=money(orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.net,0),0));
   const inPeriod=d=>d&&new Date(d)>=start&&new Date(d)<=end;
-  return {orders,units,revenue,aov:orders.length?money(revenue/orders.length):0,visits:data.visits.filter(v=>inPeriod(v.date)).reduce((n,v)=>n+v.count,0),reviews:data.reviews.filter(r=>inPeriod(r.date)).length}; } // Discounts included; delivery excluded.
+  return {orders,units,revenue,aov:orders.length?money(revenue/orders.length):0,visits:data.visits.filter(v=>inPeriod(v.date)).reduce((n,v)=>n+v.count,0),reviews:data.reviews.filter(r=>inPeriod(r.date)&&(!sellerId||data.products.some(p=>p.id===r.productId&&p.sellerId===sellerId))).length}; } // Discounts included; delivery excluded.
 // Publish the original calculation API for the seller page and regression verification.
-window.Shopay={KEY,money,ceilUnits,dateKey,uid,normalizeImageSource,validate,load,save,currentUser,cart,setCart,voucher,quote,availableCredit,checkout,status:updateOrderStatus,repay,restock,series,predict,forecast,inventory,replenishment,metrics};
+window.Shopay={KEY,money,ceilUnits,dateKey,uid,normalizeImageSource,validate,load,save,currentUser,cart,setCart,voucher,quote,availableCredit,checkout,status:updateOrderStatus,repay,restock,series,predict,forecast,inventory,replenishment,metrics,starterProducts};
 /* CUSTOMER CONTROLLER: functions below read the HTML rather than generate whole pages. */
 function showToast(message) { const el=byId('toast');el.textContent=message;el.classList.add('show');
   clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.classList.remove('show'),4200); } // Accessible feedback.
@@ -185,7 +193,7 @@ function updateState(change) { const next=structuredClone(store), result=change(
   save(next,localStorage);store=next;return result; } // Publish only after a successful write.
 function recordVisit() { const date=dateKey(new Date());updateState(data=>{const visit=data.visits.find(v=>v.date===date);if(visit)visit.count++;else data.visits.push({date,count:1});}); }
 function addChatMessage(data,userId,text,sender) { const message=text.trim();if(!message)throw Error('Write a message first.');data.chats.push({id:uid('MSG'),userId,senderId:sender.id,senderRole:sender.role,senderName:sender.name,text:message,date:new Date().toISOString()}); }
-function renderChatMessages(userId) { return store.chats.filter(m=>m.userId===userId).map(m=>`<article class="chat-message ${m.senderRole==='seller'?'from-shop':''}"><strong>${escapeHtml(m.senderName)}</strong><p>${escapeHtml(m.text)}</p><small>${formatDate(m.date)}</small></article>`).join('')||'<p class="muted">Your conversation starts here.</p>'; }
+function renderChatMessages(userId,sellerView=false) { return store.chats.filter(m=>m.userId===userId).map(m=>`<article class="chat-message ${m.senderRole==='seller'?'from-shop':''}"><strong>${escapeHtml(m.senderRole==='seller'&&!sellerView?store.shop.name:m.senderName)}</strong><p>${escapeHtml(m.text)}</p><small>${formatDate(m.date)}</small></article>`).join('')||'<p class="muted">Your conversation starts here.</p>'; }
 function requireUser() { if(getCurrentUser())return true;location.hash='login';return false; } // Protect customer records.
 function renderStatusBadge(value) { return `<span class="badge ${escapeHtml(value.toLowerCase())}">${escapeHtml(value)}</span>`; } // Consistent statuses.
 // Give an empty list a useful message and a route back to shopping.
@@ -197,8 +205,7 @@ function getUnitsSold(id) {
   return soldCache.get(id)||0;
 }
 // Show an average only when the product has actual saved reviews.
-function renderRating(id) { const rows=store.reviews.filter(r=>r.productId===id);
-  return rows.length?`<span class="rating">★ ${(rows.reduce((n,r)=>n+r.rating,0)/rows.length).toFixed(1)}</span>`:''; }
+function renderRating(id) { const rows=store.reviews.filter(r=>r.productId===id);return rows.length?`<span class="rating">★ ${(rows.reduce((n,r)=>n+r.rating,0)/rows.length).toFixed(1)}</span>`:''; }
 // Small repeated cards are the only customer markup built in JavaScript.
 function renderProductCard(p) { return `<article class="product-card"><a href="#product/${escapeHtml(p.id)}" class="product-art">
     <img loading="lazy" decoding="async" src="${escapeHtml(getProductImage(p))}" alt="${escapeHtml(p.name)}">
@@ -206,7 +213,7 @@ function renderProductCard(p) { return `<article class="product-card"><a href="#
     <div class="product-copy"><small>${escapeHtml(p.category)}</small><a href="#product/${escapeHtml(p.id)}">${escapeHtml(p.name)}</a>
     <div class="prices"><strong>${formatCurrency(p.price)}</strong><s>${formatCurrency(p.original)}</s></div>
     <div class="product-meta">${renderRating(p.id)}<span>${getUnitsSold(p.id)} sold</span><button data-action="${p.variants?'choose-variant':'add'}" data-id="${escapeHtml(p.id)}" aria-label="${p.variants?'Choose options for':'Add'} ${escapeHtml(p.name)}" ${p.stock?'':'disabled'}>${p.variants?'Choose':'+'}</button></div>
-    <small>${escapeHtml(store.shop.name)}</small></div></article>`; }
+    <small>Sold by ${escapeHtml(store.users.find(u=>u.id===p.sellerId)?.name||store.shop.name)}</small></div></article>`; }
 // Filter and sort active products, then refresh the homepage cards and offers.
 function renderHomePage() {
   const search=byId('search-form').elements.search.value.trim().toLowerCase(), min=+byId('min-price').value, max=+byId('max-price').value, sort=byId('sort').value;
@@ -224,7 +231,7 @@ function renderHomePage() {
 // Fill one product detail view and check whether the account may post a review.
 function renderProductPage(id) {
   const p=store.products.find(p=>p.id===id&&p.active);if(!p){location.hash='home';return;}selectedProductId=id;
-  for(const [element,value]of Object.entries({'detail-name':p.name,'detail-category':p.category,'detail-description':p.description,'detail-specs':p.specs,'detail-stock':`${p.stock} available`,'detail-shop':store.shop.name}))byId(element).textContent=value;
+  for(const [element,value]of Object.entries({'detail-name':p.name,'detail-category':p.category,'detail-description':p.description,'detail-specs':p.specs,'detail-stock':`${p.stock} available`,'detail-shop':`Sold by ${store.users.find(u=>u.id===p.sellerId)?.name||store.shop.name}`}))byId(element).textContent=value;
   byId('detail-image').src=getProductImage(p);byId('detail-image').alt=p.name;
   byId('detail-price').innerHTML=`<strong>${formatCurrency(p.price)}</strong><s>${formatCurrency(p.original)}</s>
     <span>Save ${Math.round((1-p.price/p.original)*100)}%</span>`;byId('detail-rating').innerHTML=renderRating(id)+` · ${getUnitsSold(id)} completed units sold`;
@@ -267,7 +274,7 @@ function renderOrderCard(o) { return `<article class="panel order-card"><div cla
 function renderOrdersPage() { const matches={pay:o=>o.status==='Pending',ship:o=>o.status==='Processing',receive:o=>['Shipped','Delivered'].includes(o.status),rate:o=>o.status==='Completed'&&o.items.some(i=>!store.reviews.some(r=>r.userId===activeUserId&&r.productId===i.productId)),history:o=>['Completed','Canceled'].includes(o.status)};
   const orders=store.orders.filter(o=>o.userId===activeUserId&&matches[purchaseTab](o)).sort((a,b)=>new Date(b.date)-new Date(a.date));
   document.querySelectorAll('#purchase-tabs button').forEach(b=>{const selected=b.dataset.value===purchaseTab;b.classList.toggle('active',selected);b.setAttribute('aria-selected',selected);});byId('order-list').innerHTML=orders.slice(0,40).map(renderOrderCard).join('')||renderEmptyState('No purchases in this section yet.'); }
-function renderSupportPage() { const signedIn=Boolean(getCurrentUser());byId('customer-chat').innerHTML=signedIn?renderChatMessages(activeUserId):'<p class="muted">Log in to start a conversation with Shopay.</p><a href="#login">Log in to message us ↗</a>';byId('support-form').hidden=!signedIn; }
+function renderSupportPage() { const signedIn=Boolean(getCurrentUser());byId('customer-chat-title').textContent=store.shop.name;byId('customer-chat-avatar').textContent=store.shop.name[0]||'S';byId('customer-chat').innerHTML=signedIn?renderChatMessages(activeUserId):'<p class="muted">Log in to start a conversation with '+escapeHtml(store.shop.name)+'.</p><a href="#login">Log in to message us ↗</a>';byId('support-form').hidden=!signedIn;byId('customer-chat').scrollTop=byId('customer-chat').scrollHeight; }
 // Display eligibility information and the account claim state.
 function renderVouchersPage() { byId('voucher-list').innerHTML=store.vouchers.map(v=>{const claimed=getCurrentUser()?.claimed.includes(v.code),disabled=v.remaining<=0||v.expires<dateKey(new Date());
   return `<article class="voucher-card"><div><strong>${v.type==='percent'?v.value+'%':formatCurrency(v.value)}</strong>
@@ -317,14 +324,14 @@ function handleDocumentClick(event) {
   const b=event.target.closest('[data-action]');if(!b)return;const {action,id,value}=b.dataset;
   try {
     if(action==='export'){exportBackup();return;}if(action==='reset'){resetShopData();return;}
-    if(action==='logout'){activeUserId=null;localStorage.removeItem(SESSION_KEY);showToast('Logged out.');renderApplication();return;}
+    if(action==='logout'){activeUserId=null;localStorage.removeItem(SESSION_KEY);showToast('Logged out.');renderApplication();return;}if(action==='demo-login'||action==='demo-customer-login'){activeUserId=action==='demo-login'?'seller-demo':'customer-demo';localStorage.setItem(SESSION_KEY,activeUserId);location.hash=action==='demo-login'?'dashboard':'home';renderApplication();return;}
     if(action==='category'){category=value;location.hash='home';renderHomePage();byId('collection').scrollIntoView();return;}
     if(action==='choose-variant'){location.hash='product/'+id;return;}if(action==='purchase-tab'){purchaseTab=value;renderOrdersPage();return;}
     if(action==='product-qty'){const input=byId('product-qty'),p=store.products.find(p=>p.id===selectedProductId);input.value=Math.max(1,Math.min(p.stock,+input.value+(+b.dataset.step)));return;}
     if(action==='clear-filters'){category='All';byId('search-form').reset();byId('min-price').value='';
   byId('max-price').value='';byId('available-only').checked=false;byId('sort').value='recommended';renderHomePage();return;}
     if(action==='apply-vouchers'){updateCheckoutSummary();return;}if(!requireUser())return;
-    if(['add','add-detail','buy'].includes(action)){const productId=id||selectedProductId,qty=action==='add'?1:+byId('product-qty').value,variant=byId('product-variant')?.value||'';
+    if(['add','add-detail','buy'].includes(action)){const productId=id||selectedProductId,qty=action==='add'?1:+byId('product-qty').value,variant=productId===selectedProductId?byId('product-variant')?.value||'':'';
   updateState(data=>{const old=cart(data,activeUserId).find(i=>i.productId===productId&&i.variant===variant);setCart(data,activeUserId,productId,action==='buy'?qty:(old?.qty||0)+qty,variant);
   if(action==='buy')data.carts[activeUserId].forEach(i=>i.selected=i.productId===productId&&i.variant===variant);});
   if(action==='buy')location.hash='checkout';else{renderApplication();showToast('A good find added to your bag.');}return;}
@@ -349,14 +356,14 @@ function handleFormSubmit(event) {
   if(!u)throw Error('Check your email, PIN, and account type.');activeUserId=u.id;
   localStorage.setItem(SESSION_KEY,u.id);location.hash=role==='seller'?'dashboard':'home';renderApplication();return;}
     if(form.id==='seller-register-form'){if(document.body.dataset.mode!=='admin')return;if(!d.name.trim()||!/^[0-9]{4}$/.test(d.pin)||store.users.some(u=>u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('Enter a name, a new email, and a 4-digit PIN.');const id=uid('seller');
-  updateState(data=>{data.users.push({id,name:d.name.trim(),email:d.email.trim().toLowerCase(),pin:d.pin,role:'seller',addresses:[],claimed:[]});if(d.catalog==='starter'&&!data.products.length)data.products=starterProducts(data.shop.id);});
+  updateState(data=>{data.users.push({id,name:d.name.trim(),email:d.email.trim().toLowerCase(),pin:d.pin,role:'seller',addresses:[],claimed:[]});if(d.catalog==='starter')data.products.push(...starterProducts(id));});
   activeUserId=id;localStorage.setItem(SESSION_KEY,id);location.hash='dashboard';renderApplication();return;}
     if(form.id==='register-form'){if(store.users.some(u=>u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('This email is already registered.');
   if(!/^\d{4}$/.test(d.pin)||!d.name.trim())throw Error('Enter your name and a 4-digit PIN.');const id=uid('customer');
   updateState(data=>data.users.push({id,name:d.name.trim(),email:d.email.trim().toLowerCase(),pin:d.pin,role:'customer',addresses:[],claimed:[],laterActive:false}));
   activeUserId=id;localStorage.setItem(SESSION_KEY,id);location.hash='home';renderApplication();return;}
     if(!requireUser())return;
-    if(form.id==='support-form'){updateState(data=>addChatMessage(data,activeUserId,d.text,getCurrentUser()));form.reset();renderSupportPage();showToast('Message sent to Shopay support.');return;}
+    if(form.id==='support-form'){updateState(data=>addChatMessage(data,activeUserId,d.text,getCurrentUser()));form.reset();renderSupportPage();showToast(`Message sent to ${store.shop.name}.`);return;}
     if(form.id==='checkout-form'){byId('place-order').disabled=true;try{updateState(data=>checkout(data,activeUserId,{...d,token:checkoutToken}));
   location.hash='orders';showToast('Your order has been placed.');}finally{byId('place-order').disabled=false;}return;}
     if(form.id==='profile-form')updateState(data=>{if(!d.name.trim()||data.users.some(u=>u.id!==activeUserId&&u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('Enter your name and a unique email address.');
@@ -390,7 +397,3 @@ function initializeShopay() {
   window.addEventListener('hashchange',renderApplication);window.addEventListener('storage',handleStorageChange);renderApplication();
 }
 document.addEventListener('DOMContentLoaded',initializeShopay,{once:true});
-
-
-
-
