@@ -168,7 +168,7 @@ hr{border:0;border-top:1px solid var(--line);margin:20px 0}
 .order-card .section-heading small{display:block;margin-top:6px;color:var(--muted);font-size:10px}
 .order-line{display:flex;align-items:center;gap:15px;margin-block:12px;font-size:11px}
 .order-line img{width:50px;height:50px;border-radius:6px;background:#edf1e5}
-.order-line>span{flex:1}
+.order-line>span{flex:1;display:flex;align-items:center;gap:10px;flex-wrap:wrap}.order-item-name{flex-basis:100%}.order-message-link{min-height:36px}.order-message-link svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .order-progress{display:flex;flex-wrap:wrap;gap:10px;color:#59664f;font-size:8px;padding:18px 0}
 .order-progress .done{color:#557c50;font-weight:600}
 .badge{display:inline-block;white-space:nowrap;font-size:9px;background:#f7f0e2;border:1px solid #e7dec8;border-radius:5px;color:#70551e;padding:5px 8px}
@@ -251,7 +251,7 @@ footer>a:last-child{font-size:10px;color:#4e6739;white-space:nowrap}
 .kpi>strong{font-size:27px;letter-spacing:-1px;display:block;margin-block:17px}
 .kpi>small{font-size:8px;line-height:1.6;color:#58664d;display:block}
 .chart{display:block;width:100%;height:auto;margin-top:18px;min-height:150px}
-.chart text{font:20px Arial,sans-serif;fill:#58654e}
+.chart text{font:12px Arial,sans-serif;fill:#58654e}
 .bar-row{margin-top:23px}
 .bar-row>div:first-child{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:10px;color:#56664b}
 .bar-row b{font-size:9px;font-weight:500;white-space:nowrap}

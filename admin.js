@@ -23,11 +23,11 @@ function renderKpis(current,previous) { return renderKpiCard('Net product revenu
 // Map recorded values to SVG coordinates; no chart library or random values are needed.
 function renderChart(data,key='revenue',future=null) {
   if(!data.some(d=>d.orders))return '<p>No completed sales recorded yet.</p>';
-  const width=760,height=250,padding=40,count=data.length+(future===null?0:1),maximum=Math.max(1,...data.map(d=>d[key]),future||0)*1.15;
+  const width=760,height=250,padding=48,count=data.length+(future===null?0:1),maximumValue=Math.max(1,...data.map(d=>d[key]),future||0),roughStep=maximumValue/4,magnitude=10**Math.floor(Math.log10(roughStep)),ratio=roughStep/magnitude,step=([1,1.5,2,2.5,5,10].find(n=>n>=ratio)||10)*magnitude,maximum=step*4;
   function xPosition(index) { return padding+index*(width-padding-18)/Math.max(1,count-1); } // Period → horizontal position.
   function yPosition(value) { return height-padding-value/maximum*(height-padding-18); } // Quantity → vertical position.
   const points=data.map((d,i)=>`${xPosition(i)},${yPosition(d[key])}`).join(' ');
-  const grid=Array.from({length:5},(_,i)=>{const value=maximum*i/4,y=yPosition(value);
+  const grid=Array.from({length:5},(_,i)=>{const value=step*i,y=yPosition(value);
   return `<line x1="${padding}" x2="${width-12}" y1="${y}" y2="${y}" stroke="#e7ebe1"/><text x="${padding-7}" y="${y+4}" text-anchor="end">${value>=1000?formatNumber(value/1000)+'k':formatNumber(value)}</text>`;}).join('');
   const labels=data.map((d,i)=>i%Math.max(1,Math.floor(data.length/6))===0?`<text x="${xPosition(i)}" y="${height-10}" text-anchor="${i?'middle':'start'}">${new Date(d.date+'T12:00:00').toLocaleDateString('en-PH',{month:'short',day:'numeric'})}</text>`:'').join('');
   const dots=data.map((d,i)=>`<circle cx="${xPosition(i)}" cy="${yPosition(d[key])}" r="3" fill="#355f49"><title>${d.date}: ${formatNumber(d[key])}</title></circle>`).join('');
@@ -94,9 +94,15 @@ function renderSellerAnalytics() {
   byId('voucher-summary').textContent=`${current.orders.filter(o=>o.vouchers?.length).length} completed orders used vouchers. Order discounts: ${formatCurrency(current.orders.reduce((n,o)=>n+o.discount,0))}. Shipping discounts: ${formatCurrency(current.orders.reduce((n,o)=>n+o.shippingDiscount,0))}.`;
 }
 // Show customer conversations and keep the selected thread open after refreshes.
-function renderSellerMessages() { const select=byId('chat-customer'),selected=select.value,customers=store.users.filter(u=>u.role==='customer'&&store.chats.some(m=>m.userId===u.id));
-  select.innerHTML=customers.map(u=>`<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)}</option>`).join('');if(customers.some(u=>u.id===selected))select.value=selected;
-  const id=select.value,user=currentUser(store,id);byId('seller-chat-form').elements.customerId.value=id||'';byId('seller-chat-title').textContent=store.shop.name;byId('seller-chat-avatar').textContent=store.shop.name[0]||'S';byId('seller-chat-subtitle').textContent=user?`Conversation with ${user.name}`:'Choose a customer to reply';byId('seller-chat').innerHTML=id?renderChatMessages(id,true):'<p class="muted">Customer messages will appear here.</p>';byId('seller-chat').scrollTop=byId('seller-chat').scrollHeight; }
+function renderSellerMessages() {
+  const select=byId('chat-customer'),selected=select.value,threads=new Map();
+  store.chats.filter(m=>!m.productId||m.sellerId===sellerId()).forEach(m=>{const key=[m.userId,m.productId?m.sellerId||'':'',m.productId||'',m.orderId||''].join('|');threads.set(key,m);});
+  const options=[...threads].map(([key,m])=>{const user=currentUser(store,m.userId),product=store.products.find(p=>p.id===m.productId),label=[user?.name||'Customer',product?.name,m.orderId].filter(Boolean).join(' · ');return `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`;});
+  select.innerHTML=options.join('');if(threads.has(selected))select.value=selected;
+  const [id,threadSeller,productId,orderId]=(select.value||'').split('|'),user=currentUser(store,id),context=productId?{sellerId:threadSeller,productId,orderId}:null,form=byId('seller-chat-form'),shop=getCurrentUser().name;
+  form.elements.customerId.value=id||'';form.elements.sellerId.value=context?threadSeller:'';form.elements.productId.value=productId||'';form.elements.orderId.value=orderId||'';
+  byId('seller-chat-title').textContent=shop;byId('seller-chat-avatar').textContent=shop[0]||'S';byId('seller-chat-subtitle').textContent=user?`Conversation with ${user.name}${context?' · '+(store.products.find(p=>p.id===productId)?.name||'ordered item'):''}`:'No customer messages yet';byId('seller-chat').innerHTML=id?renderChatMessages(id,true,context):'<p class="muted">Customer messages will appear here.</p>';byId('seller-chat').scrollTop=byId('seller-chat').scrollHeight;
+}
 // The preview uses the same replenishment function as inventory; no duplicate ROP formula.
 function renderSellerForecast() { const p=sellerProducts().find(p=>p.id===byId('forecast-product').value),button=byId('forecast-restock');
   if(!p){byId('forecast-kpis').innerHTML='';byId('forecast-chart').innerHTML='';byId('forecast-action').textContent='Add a product to see demand insights.';button.disabled=true;return;}
@@ -146,7 +152,7 @@ function handleAdminSubmit(event) {
   const form=event.target;if(!['product-form','stock-form','voucher-form','status-form','settings-form','seller-chat-form'].includes(form.id))return;
   event.preventDefault();if(getCurrentUser()?.role!=='seller')return;const d=Object.fromEntries(new FormData(form));
   try {
-    if(form.id==='seller-chat-form'){const user=currentUser(store,d.customerId);if(!user||user.role!=='customer')throw Error('Choose a customer conversation first.');updateState(data=>addChatMessage(data,user.id,d.text,getCurrentUser()));form.reset();initializeAdmin();return;}
+    if(form.id==='seller-chat-form'){const user=currentUser(store,d.customerId);if(!user||user.role!=='customer')throw Error('Choose a customer conversation first.');const context={sellerId:d.sellerId||sellerId(),productId:d.productId||'',orderId:d.orderId||''};if(context.productId&&!store.orders.some(o=>o.id===context.orderId&&o.userId===user.id&&o.items.some(i=>i.productId===context.productId&&i.sellerId===context.sellerId)))throw Error('This conversation does not match the customer order.');updateState(data=>addChatMessage(data,user.id,d.text,getCurrentUser(),context));form.reset();initializeAdmin();return;}
     if(form.id==='product-form'){if(d.image&&!normalizeImageSource(d.image))throw Error('Use a direct HTTP or HTTPS image URL.');
   if(+d.original<+d.price)throw Error('Original price must be at least the selling price.');
   updateState(data=>{const old=data.products.find(p=>p.id===d.recordId),p={...(old||{id:uid('p'),shopId:data.shop.id,sellerId:sellerId(),active:true,flash:false,created:new Date().toISOString()}),name:d.name.trim(),category:d.category,price:+d.price,original:+d.original,stock:+d.stock,image:d.image.trim(),variants:d.variants.trim(),description:d.description.trim(),specs:d.specs.trim(),supplier:d.supplier.trim(),lead:+d.lead,safety:+d.safety,minimum:+d.minimum};
