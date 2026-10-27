@@ -3,10 +3,10 @@
    Use one static-server origin for index.html and admin.html so LocalStorage is shared. */
 'use strict';
 const KEY = 'ecommerce_shopay_v1', SESSION_KEY = 'ecommerce_current_user';
-const CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Beauty', 'Sports & Outdoors'];
+const CATEGORIES = ['Electronics', 'Fashion', 'Home & Living', 'Beauty', 'Sports & Outdoors', 'Others'];
 const CURRENCY_FORMAT = new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}), NUMBER_FORMAT = new Intl.NumberFormat('en-PH',{maximumFractionDigits:1});
 const STATUSES = {Pending:['Processing','Canceled'], Processing:['Shipped','Canceled'], Shipped:['Delivered'], Delivered:['Completed'], Completed:[], Canceled:[]};
-let store, activeUserId, selectedProductId = '', checkoutToken = '', category = 'All';
+let store, activeUserId, selectedProductId = '', checkoutToken = '', category = 'All', purchaseTab='history';
 let soldCacheState, soldCache = new Map(); // Reuse completed totals until the dataset changes.
 // Small helpers keep repeated formatting, element lookup, and date handling in one place.
 function byId(id) { return document.getElementById(id); } // Find one HTML element.
@@ -44,7 +44,7 @@ const INITIAL_PRODUCTS = [
   {id:'p15',name:'Everyday Analog Watch',category:'Fashion',price:1199,original:1799,stock:12,photo:'1524805444758-089113d48a6d'}
 ];
 // Accept direct internet photos; reject executable schemes and embedded credentials.
-function normalizeImageSource(source) { try { const url = new URL(source);
+function normalizeImageSource(source) { if(/^data:image\/(jpeg|png|webp);base64,/i.test(source||''))return source;try { const url = new URL(source);
    return ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; } }
 // A built-in SVG keeps the five-file site presentable when a photo cannot load.
 function fallbackImage(name = 'shopay') { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="500" height="430"><rect width="500" height="430" fill="#e5ecdf"/><circle cx="250" cy="195" r="113" fill="#d1ddc8"/><path d="M192 170h116l15 133H177l15-133m23 0v-25a35 35 0 0 1 70 0v25" fill="none" stroke="#708469" stroke-width="9"/><text x="250" y="365" text-anchor="middle" fill="#405c48" font-family="Georgia" font-size="22">${escapeHtml(name.slice(0,30))}</text></svg>`); }
@@ -53,50 +53,36 @@ function getProductImage(product) { const image=normalizeImageSource(product.ima
   const initial=INITIAL_PRODUCTS.find(p=>p.id===product.id);
   return initial?`https://images.unsplash.com/photo-${initial.photo}?w=640&auto=format&fit=crop&q=80`:fallbackImage(product.name); }
 // Prepare the catalog, account, order history, and opening inventory.
-function seed(now = new Date()) {
-  const shopId = 'shopay-studio', expiry = new Date(now); expiry.setFullYear(expiry.getFullYear()+1);
-  const products = INITIAL_PRODUCTS.map(p => ({...p,shopId,image:`https://images.unsplash.com/photo-${p.photo}?w=640&auto=format&fit=crop&q=80`,active:true,description:'A thoughtful everyday essential from the original Shopay collection.',specs:'Standard edition',supplier:'Shopay Supply Co.',lead:7,safety:10,minimum:5,flash:['p01','p03','p05'].includes(p.id),created:new Date(now.getFullYear(),now.getMonth()-7,1).toISOString()}));
-  const users = [{id:'customer-demo',name:'Alex Reyes',email:'alex@shopay.ph',pin:'1234',role:'customer',addresses:['12 Acacia Street, Quezon City'],claimed:['HELLO10','SHIPFREE'],laterActive:true},{id:'seller-demo',name:'Jamie Santos',email:'seller@shopay.ph',pin:'1234',role:'seller',addresses:['Shopay Studio, Makati City'],claimed:[],laterActive:false}];
-  const data = {version:1,seededAt:now.toISOString(),shop:{id:shopId,name:'Shopay Studio',tagline:'Good finds. Everyday joy.'},users,products,orders:[],carts:{},vouchers:[],installments:[],adjustments:[],reviews:[],settings:{standard:49,express:99,window:4}};
-  for (let daysAgo = 181; daysAgo >= 1; daysAgo--) {
-    const d = new Date(now); d.setDate(d.getDate()-daysAgo); d.setHours(12,0,0,0);
-    const items = products.map((p,i) => { const qty = Math.max(0,Math.round((i<4?1.9:.7)+Math.sin((181-daysAgo)*.53+i*1.7)+(d.getDay()===6?.9:0)+(181-daysAgo)/400));
-   return {productId:p.id,shopId,name:p.name,category:p.category,price:p.price,image:p.image,qty,net:p.price*qty}; }).filter(i => i.qty);
-    const total = items.reduce((sum,i) => sum+i.net,0);
-   data.orders.push({id:'SP-'+dateKey(d),userId:users[0].id,customer:users[0].name,shopId,date:d.toISOString(),completedAt:d.toISOString(),items,status:'Completed',subtotal:total,discount:0,shipping:0,shippingDiscount:0,total,payment:'E-Wallet',address:users[0].addresses[0],seeded:true});
-  }
-  data.vouchers = [{id:'v1',code:'HELLO10',type:'percent',value:10,min:500,max:250},{id:'v2',code:'SHIPFREE',type:'shipping',value:100,min:299,max:100},{id:'v3',code:'LITTLEJOY',type:'fixed',value:100,min:1200,max:100}].map(v => ({...v,shopId,expires:dateKey(expiry),remaining:100}));
-  const loanDate = new Date(now); loanDate.setDate(loanDate.getDate()-20); const p = products[0];
-  data.orders.push({id:'SP-LATER-001',userId:users[0].id,customer:users[0].name,shopId,date:loanDate.toISOString(),completedAt:loanDate.toISOString(),status:'Completed',items:[{productId:p.id,shopId,name:p.name,category:p.category,price:p.price,image:p.image,qty:1,net:1299}],subtotal:1299,discount:0,shipping:0,shippingDiscount:0,total:1299,payment:'ShopayLater',address:users[0].addresses[0],vouchers:[],seeded:true});
-  data.installments.push({id:'SL-001',orderId:'SP-LATER-001',userId:users[0].id,principal:1299,remaining:866,months:3,monthly:433,payments:[{date:loanDate.toISOString(),amount:433}],date:loanDate.toISOString(),seeded:true});
-  data.adjustments = products.map(p => ({id:'opening-'+p.id,productId:p.id,qty:p.stock+data.orders.reduce((n,o) => n+o.items.filter(i=>i.productId===p.id).reduce((sum,i)=>sum+i.qty,0),0),date:new Date(now.getTime()-182*86400000).toISOString(),reason:'Opening stock (sales deducted)'}));
-  data.reviews = [{id:'r1',userId:users[0].id,productId:'p01',name:'Alex R.',rating:5,text:'Comfortable through a full day of use.',seeded:true}]; return data;
-}
+function seed() { return {version:1,shop:{id:'shopay-studio',name:'Shopay',tagline:'Good finds. Everyday joy.'},users:[],products:[],orders:[],carts:{},vouchers:[],installments:[],adjustments:[],reviews:[],visits:[],chats:[],settings:{standard:49,express:99,courier:'J&T Express',window:4}}; }
+function starterProducts(shopId) { return INITIAL_PRODUCTS.map(p=>({...p,shopId,image:`https://images.unsplash.com/photo-${p.photo}?w=640&auto=format&fit=crop&q=80`,variants:'',active:true,description:'A thoughtful everyday essential from the Shopay collection.',specs:'Standard edition',supplier:'Shopay Supply Co.',lead:7,safety:10,minimum:5,flash:['p01','p03','p05'].includes(p.id),created:new Date().toISOString()})); }
 // Validate imported or changed records before any LocalStorage replacement.
 function validate(data) {
-  if (!data || data.version!==1 || !data.shop || !data.carts || !data.settings || !['users','products','orders','vouchers','installments','adjustments','reviews'].every(k=>Array.isArray(data[k]))) throw Error('Invalid Shopay backup structure.');
-  if (data.users.filter(u=>u.role==='seller').length!==1 || new Set(data.users.map(u=>u.id)).size!==data.users.length) throw Error('Shop setup requires exactly one seller and unique accounts.');
+  if (!data || data.version!==1 || !data.shop || !data.carts || !data.settings || !['users','products','orders','vouchers','installments','adjustments','reviews','visits','chats'].every(k=>Array.isArray(data[k]))) throw Error('Invalid Shopay backup structure.');
+  if (new Set(data.users.map(u=>u.id)).size!==data.users.length) throw Error('Account IDs must be unique.');
   for (const u of data.users) if (!u.id || typeof u.name!=='string' || typeof u.email!=='string' || !/^\d{4}$/.test(u.pin) || !['seller','customer'].includes(u.role) || !Array.isArray(u.addresses) || !Array.isArray(u.claimed)) throw Error('Invalid account record.');
   if (new Set(data.products.map(p=>p.id)).size!==data.products.length) throw Error('Product IDs must be unique.');
-  for (const p of data.products) if (!p.id || p.shopId!==data.shop.id || typeof p.name!=='string' || !Number.isFinite(p.price) || p.price<=0 || !Number.isFinite(p.original) || p.original<p.price || !['stock','lead','safety','minimum'].every(k=>Number.isInteger(p[k])&&p[k]>=0)) throw Error('Invalid product record.');
+  for (const p of data.products) if (!p.id || p.shopId!==data.shop.id || typeof p.name!=='string' || !CATEGORIES.includes(p.category) || !Number.isFinite(p.price) || p.price<=0 || !Number.isFinite(p.original) || p.original<p.price || !['stock','lead','safety','minimum'].every(k=>Number.isInteger(p[k])&&p[k]>=0)) throw Error('Invalid product record.');
   for (const o of data.orders) if (!data.users.some(u=>u.id===o.userId) || !STATUSES[o.status] || !Number.isFinite(Date.parse(o.date)) || !Number.isFinite(o.total) || !Array.isArray(o.items) || !o.items.length || o.items.some(i=>i.shopId!==data.shop.id||!Number.isInteger(i.qty)||i.qty<1||!Number.isFinite(i.price)||!Number.isFinite(i.net))) throw Error('Invalid order record.');
   for (const v of data.vouchers) if (!/^[A-Za-z0-9_-]{3,30}$/.test(v.code) || !['percent','fixed','shipping'].includes(v.type) || !['value','min','max'].every(k=>Number.isFinite(v[k])&&v[k]>=0) || (v.type==='percent'&&v.value>100) || !Number.isInteger(v.remaining) || v.remaining<0 || !Number.isFinite(Date.parse(v.expires))) throw Error('Invalid voucher record.');
   for (const l of data.installments) if (!data.users.some(u=>u.id===l.userId) || ![1,3,6].includes(l.months) || !Number.isFinite(l.principal) || !Number.isFinite(l.remaining) || l.remaining<0 || l.remaining>l.principal || !(l.monthly>0) || !Array.isArray(l.payments)) throw Error('Invalid installment record.');
   for (const rows of Object.values(data.carts)) if (!Array.isArray(rows) || rows.some(i=>!data.products.some(p=>p.id===i.productId)||!Number.isInteger(i.qty)||i.qty<1||typeof i.selected!=='boolean')) throw Error('Invalid cart record.');
   for (const r of data.reviews) if (!Number.isInteger(r.rating)||r.rating<1||r.rating>5||typeof r.text!=='string'||typeof r.name!=='string') throw Error('Invalid review record.');
+  if(data.visits.some(v=>!/^\d{4}-\d{2}-\d{2}$/.test(v.date)||!Number.isInteger(v.count)||v.count<0)||data.chats.some(m=>!m.userId||!m.senderId||!m.text||!m.date))throw Error('Invalid visit or message record.');
   if (!['standard','express'].every(k=>Number.isFinite(data.settings[k])&&data.settings[k]>=0) || !Number.isInteger(data.settings.window) || data.settings.window<2 || data.settings.window>12) throw Error('Invalid shop settings.'); return data;
 }
 function migrateShopCopy(data) {
-  const emails={'alex@shopay.demo':'alex@shopay.ph','seller@shopay.demo':'seller@shopay.ph'};
-  data.users.forEach(u=>{if(emails[u.email])u.email=emails[u.email];u.addresses=u.addresses.map(a=>typeof a==='string'?a.replace('12 Demo Lane, Sample Barangay, Quezon City','12 Acacia Street, Quezon City').replace('Shopay Studio, Demo City','Shopay Studio, Makati City'):a);});
-  data.products.forEach(p=>{if(typeof p.description==='string')p.description=p.description.replace('original Shopay demo collection','original Shopay collection');if(typeof p.specs==='string')p.specs=p.specs.replace(' · Fictional demo product','');if(typeof p.supplier==='string')p.supplier=p.supplier.replace('Shopay Demo Supply Co.','Shopay Supply Co.');});
-  data.orders.forEach(o=>{if(typeof o.id==='string')o.id=o.id.replace(/^DEMO-/,'SP-');if(typeof o.payment==='string')o.payment=o.payment.replace('Demo E-Wallet','E-Wallet').replace('Demo Card','Card');if(typeof o.address==='string')o.address=o.address.replace('12 Demo Lane, Sample Barangay, Quezon City','12 Acacia Street, Quezon City');});
-  data.installments.forEach(l=>{if(typeof l.id==='string')l.id=l.id.replace('SL-DEMO-','SL-');if(typeof l.orderId==='string')l.orderId=l.orderId.replace(/^DEMO-/,'SP-');});
-  [...data.orders,...data.installments,...data.reviews].forEach(record=>{if(record.seeded===undefined&&record.synthetic!==undefined)record.seeded=record.synthetic;delete record.synthetic;});
-  data.adjustments.forEach(a=>{if(typeof a.reason==='string')a.reason=a.reason.replace('Synthetic opening stock','Opening stock');});
-  data.reviews.forEach(r=>{if(r.text==='Comfortable for a long study session.')r.text='Comfortable through a full day of use.';});return data;
+  data.visits??=[];data.chats??=[];data.settings.courier??='J&T Express';
+  data.orders=data.orders.filter(o=>!o.seeded&&!o.synthetic&&o.userId!=='customer-demo'&&!/^SP-\d{4}-\d{2}-\d{2}$/.test(o.id||'')&&o.id!=='SP-LATER-001');
+  data.reviews=data.reviews.filter(r=>!r.seeded&&!r.synthetic&&r.userId!=='customer-demo'&&r.id!=='r1');
+  data.installments=data.installments.filter(l=>!l.seeded&&!l.synthetic&&l.userId!=='customer-demo'&&l.id!=='SL-001'&&l.id!=='SL-DEMO-001');
+  data.adjustments=data.adjustments.filter(a=>!String(a.id).startsWith('opening-')&&!String(a.reason).startsWith('Opening stock'));
+  data.vouchers=data.vouchers.filter(v=>!['v1','v2','v3'].includes(v.id)&&!v.seeded);
+  if(data.seededAt)data.products=data.products.filter(p=>!/^p\d{2}$/.test(p.id)||Date.parse(data.seededAt)-Date.parse(p.created)<180*86400000);
+  data.products.forEach(p=>{p.variants??='';});data.users=data.users.filter(u=>!['seller-demo','customer-demo'].includes(u.id));
+  Object.keys(data.carts).forEach(id=>{if(!data.users.some(u=>u.id===id))delete data.carts[id];else data.carts[id]=data.carts[id].filter(i=>data.products.some(p=>p.id===i.productId)).map(i=>({...i,variant:i.variant||''}));});
+  [...data.orders,...data.reviews,...data.installments].forEach(row=>{delete row.seeded;delete row.synthetic;});delete data.seededAt;return data;
 }
-function load(storage) { const raw = storage.getItem(KEY); if (!raw) return null; try { return migrateShopCopy(validate(JSON.parse(raw)));
+function load(storage) { const raw = storage.getItem(KEY); if (!raw) return null; try { const data=validate(migrateShopCopy(JSON.parse(raw))),clean=JSON.stringify(data);if(clean!==raw)storage.setItem(KEY,clean);return data;
    } catch (error) { throw Error('Stored data could not be read. Export before resetting. '+error.message); } } // Preserve corrupt data for recovery.
 function save(data, storage) { validate(data); try { storage.setItem(KEY,JSON.stringify(data));
    } catch { throw Error('Browser storage is full or unavailable. Export a backup.'); } } // One validated write.
@@ -104,12 +90,12 @@ function currentUser(data, id) { return data?.users.find(u=>u.id===id); } // Acc
 function getCurrentUser() { return currentUser(store,activeUserId); } // Current local session.
 function cart(data, id) { return data.carts[id] || []; } // Account-specific cart rows.
 // Zero removes even an inactive item; positive quantities must be whole and available.
-function setCart(data, id, productId, qty) {
+function setCart(data, id, productId, qty, variant='') {
   if (!Number.isInteger(qty)||qty<0) throw Error('Enter a nonnegative whole quantity.');
-  const rows = cart(data,id).filter(i=>i.productId!==productId); if (!qty) { data.carts[id]=rows; return; }
+  const rows = cart(data,id).filter(i=>i.productId!==productId||i.variant!==variant); if (!qty) { data.carts[id]=rows; return; }
   const p = data.products.find(p=>p.id===productId&&p.active); if (!p) throw Error('This product is unavailable.');
    if(qty>p.stock) throw Error(`Only ${p.stock} units available.`);
-  rows.push({productId,qty,selected:true}); data.carts[id]=rows;
+  rows.push({productId,qty,selected:true,variant}); data.carts[id]=rows;
 }
 // Validate eligibility and cap discounts; quoting never consumes voucher uses.
 function voucher(data, code, subtotal, shipping, type) {
@@ -124,7 +110,7 @@ function voucher(data, code, subtotal, shipping, type) {
 // Price only selected items and recheck live stock before displaying or placing an order.
 function quote(data, id, options={}) {
   const rows=cart(data,id).filter(i=>i.selected).map(i=>{const p=data.products.find(p=>p.id===i.productId);
-   if(!p?.active||!Number.isInteger(i.qty)||i.qty<1||i.qty>p.stock) throw Error('An item is unavailable or exceeds stock.'); return {...p,qty:i.qty};});
+   if(!p?.active||!Number.isInteger(i.qty)||i.qty<1||i.qty>p.stock) throw Error('An item is unavailable or exceeds stock.'); return {...p,qty:i.qty,variant:i.variant||''};});
   if (!rows.length) throw Error('Select at least one item for checkout.');
    const subtotal=money(rows.reduce((n,p)=>n+p.price*p.qty,0)), shipping=options.shipping==='express'?data.settings.express:data.settings.standard;
   const discount=voucher(data,options.code,subtotal,shipping,'order'), delivery=voucher(data,options.shippingCode,subtotal,shipping,'shipping');
@@ -140,10 +126,10 @@ function checkout(data, id, options) {
   const q=quote(data,id,options); if(options.payment==='ShopayLater') { if(!user.laterActive) throw Error('Activate ShopayLater first.');
    if(![1,3,6].includes(+options.months)) throw Error('Choose 1, 3, or 6 months.');
    if(q.total>availableCredit(data,id)) throw Error('This order is above your available ShopayLater balance.'); }
-  const order={id:uid('SP'),token:options.token,userId:id,customer:user.name,shopId:data.shop.id,date:new Date().toISOString(),completedAt:null,status:'Pending',address:options.address.trim(),payment:options.payment,shippingOption:options.shipping||'standard',subtotal:q.subtotal,discount:q.discount,shipping:q.shipping,shippingDiscount:q.shippingDiscount,total:q.total,vouchers:q.vouchers.map(v=>v.code),restored:false,seeded:false,items:[]}; let allocated=0;
+  const order={id:uid('SP'),token:options.token,userId:id,customer:user.name,shopId:data.shop.id,date:new Date().toISOString(),completedAt:null,status:'Pending',address:options.address.trim(),payment:options.payment,shippingOption:options.shipping||'standard',subtotal:q.subtotal,discount:q.discount,shipping:q.shipping,shippingDiscount:q.shippingDiscount,total:q.total,vouchers:q.vouchers.map(v=>v.code),restored:false,items:[]}; let allocated=0;
   q.rows.forEach((p,index)=>{const line=p.price*p.qty, reduction=index===q.rows.length-1?money(q.discount-allocated):money(q.discount*line/q.subtotal);
    allocated=money(allocated+reduction);
-   order.items.push({productId:p.id,shopId:p.shopId,name:p.name,category:p.category,price:p.price,qty:p.qty,image:p.image,net:money(line-reduction)});
+   order.items.push({productId:p.id,shopId:p.shopId,name:p.name,category:p.category,price:p.price,qty:p.qty,image:p.image,variant:p.variant,net:money(line-reduction)});
    data.products.find(item=>item.id===p.id).stock-=p.qty;});
   q.vouchers.forEach(v=>v.remaining--); data.orders.push(order); data.carts[id]=cart(data,id).filter(i=>!i.selected);
   if(options.payment==='ShopayLater') data.installments.push({id:uid('SL'),orderId:order.id,userId:id,principal:q.total,remaining:q.total,months:+options.months,monthly:money(q.total/+options.months),payments:[],date:order.date}); return order;
@@ -183,12 +169,13 @@ function forecast(data,id,windowSize=data.settings.window,now=new Date()) {
 }
 function replenishment(product,weeklyDemand) { const daily=weeklyDemand/7, rop=ceilUnits(daily*product.lead+product.safety), target=ceilUnits(daily*(product.lead+14)+product.safety);
    return {weekly:weeklyDemand,daily,rop,target,reorder:product.stock<=rop?Math.max(0,target-product.stock):0,low:product.stock<=Math.max(rop,product.minimum)}; } // One shared stock policy.
-function inventory(data,product) { return replenishment(product,predict(series(data,product.id,'weekly',data.settings.window).map(b=>b.units),data.settings.window));
-   } // Avoid accuracy work for stock alerts.
+function inventory(data,product) { const weeks=series(data,product.id,'weekly',data.settings.window).map(b=>b.units);
+  return weeks.some(Boolean)?replenishment(product,predict(weeks,data.settings.window)):{...replenishment(product,0),noData:true,reorder:0}; } // No sales means no forecast.
 function metrics(data,days=30,offset=0,now=new Date()) { const end=new Date(now);end.setHours(23,59,59,999);
   end.setDate(end.getDate()-offset);const start=new Date(end);start.setDate(start.getDate()-days+1);start.setHours(0,0,0,0);
   const orders=data.orders.filter(o=>o.shopId===data.shop.id&&o.status==='Completed'&&new Date(o.completedAt||o.date)>=start&&new Date(o.completedAt||o.date)<=end), units=orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.qty,0),0), revenue=money(orders.reduce((n,o)=>n+o.items.reduce((sum,i)=>sum+i.net,0),0));
-  return {orders,units,revenue,aov:orders.length?money(revenue/orders.length):0}; } // Discounts included; delivery excluded.
+  const inPeriod=d=>d&&new Date(d)>=start&&new Date(d)<=end;
+  return {orders,units,revenue,aov:orders.length?money(revenue/orders.length):0,visits:data.visits.filter(v=>inPeriod(v.date)).reduce((n,v)=>n+v.count,0),reviews:data.reviews.filter(r=>inPeriod(r.date)).length}; } // Discounts included; delivery excluded.
 // Publish the original calculation API for the seller page and regression verification.
 window.Shopay={KEY,money,ceilUnits,dateKey,uid,normalizeImageSource,validate,load,save,currentUser,cart,setCart,voucher,quote,availableCredit,checkout,status:updateOrderStatus,repay,restock,series,predict,forecast,inventory,replenishment,metrics};
 /* CUSTOMER CONTROLLER: functions below read the HTML rather than generate whole pages. */
@@ -196,6 +183,9 @@ function showToast(message) { const el=byId('toast');el.textContent=message;el.c
   clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>el.classList.remove('show'),4200); } // Accessible feedback.
 function updateState(change) { const next=structuredClone(store), result=change(next);
   save(next,localStorage);store=next;return result; } // Publish only after a successful write.
+function recordVisit() { const date=dateKey(new Date());updateState(data=>{const visit=data.visits.find(v=>v.date===date);if(visit)visit.count++;else data.visits.push({date,count:1});}); }
+function addChatMessage(data,userId,text,sender) { const message=text.trim();if(!message)throw Error('Write a message first.');data.chats.push({id:uid('MSG'),userId,senderId:sender.id,senderRole:sender.role,senderName:sender.name,text:message,date:new Date().toISOString()}); }
+function renderChatMessages(userId) { return store.chats.filter(m=>m.userId===userId).map(m=>`<article class="chat-message ${m.senderRole==='seller'?'from-shop':''}"><strong>${escapeHtml(m.senderName)}</strong><p>${escapeHtml(m.text)}</p><small>${formatDate(m.date)}</small></article>`).join('')||'<p class="muted">Your conversation starts here.</p>'; }
 function requireUser() { if(getCurrentUser())return true;location.hash='login';return false; } // Protect customer records.
 function renderStatusBadge(value) { return `<span class="badge ${escapeHtml(value.toLowerCase())}">${escapeHtml(value)}</span>`; } // Consistent statuses.
 // Give an empty list a useful message and a route back to shopping.
@@ -215,7 +205,7 @@ function renderProductCard(p) { return `<article class="product-card"><a href="#
     <span class="discount">−${Math.round((1-p.price/p.original)*100)}%</span>${p.stock?'':'<b class="sold-out">Sold out</b>'}</a>
     <div class="product-copy"><small>${escapeHtml(p.category)}</small><a href="#product/${escapeHtml(p.id)}">${escapeHtml(p.name)}</a>
     <div class="prices"><strong>${formatCurrency(p.price)}</strong><s>${formatCurrency(p.original)}</s></div>
-    <div class="product-meta">${renderRating(p.id)}<span>${getUnitsSold(p.id)} sold</span><button data-action="add" data-id="${escapeHtml(p.id)}" aria-label="Add ${escapeHtml(p.name)}" ${p.stock?'':'disabled'}>+</button></div>
+    <div class="product-meta">${renderRating(p.id)}<span>${getUnitsSold(p.id)} sold</span><button data-action="${p.variants?'choose-variant':'add'}" data-id="${escapeHtml(p.id)}" aria-label="${p.variants?'Choose options for':'Add'} ${escapeHtml(p.name)}" ${p.stock?'':'disabled'}>${p.variants?'Choose':'+'}</button></div>
     <small>${escapeHtml(store.shop.name)}</small></div></article>`; }
 // Filter and sort active products, then refresh the homepage cards and offers.
 function renderHomePage() {
@@ -224,10 +214,10 @@ function renderHomePage() {
   if(sort==='low')products.sort((a,b)=>a.price-b.price);if(sort==='high')products.sort((a,b)=>b.price-a.price);
   if(sort==='sold')products.sort((a,b)=>getUnitsSold(b.id)-getUnitsSold(a.id));if(sort==='new')products.sort((a,b)=>new Date(b.created)-new Date(a.created));
   byId('product-grid').innerHTML=products.map(renderProductCard).join('')||renderEmptyState('No finds match these filters.');
-  byId('product-count').textContent=`${products.length} good finds`;
+  byId('product-count').textContent=`${products.length} ${products.length===1?'good find':'good finds'}`;byId('benefit-count').textContent=`${store.products.filter(p=>p.active).length} pieces in the current edit`;byId('collection-label').textContent=`SHOPAY / ${store.products.filter(p=>p.active).length} ITEMS`;
   byId('category-buttons').innerHTML=['All',...CATEGORIES].map(c=>`<button data-action="category" data-value="${c}" class="${c===category?'active':''}">${c}</button>`).join('');
-  const hero=store.products.find(p=>p.active)||INITIAL_PRODUCTS[0];byId('hero-image').src=getProductImage(hero);
-  byId('hero-name').textContent=hero.name;byId('hero-price').textContent=formatCurrency(hero.price);
+  const hero=store.products.find(p=>p.active);byId('hero-image').src=hero?getProductImage(hero):fallbackImage('Shopay collection');
+  byId('hero-name').textContent=hero?.name||'Shopay collection';byId('hero-price').textContent=hero?formatCurrency(hero.price):'Coming soon';
   byId('flash-products').innerHTML=store.products.filter(p=>p.active&&p.flash).slice(0,3).map(p=>`<a href="#product/${p.id}">
     <img src="${escapeHtml(getProductImage(p))}" alt="${escapeHtml(p.name)}"><strong>${formatCurrency(p.price)}</strong></a>`).join('');
 }
@@ -238,19 +228,20 @@ function renderProductPage(id) {
   byId('detail-image').src=getProductImage(p);byId('detail-image').alt=p.name;
   byId('detail-price').innerHTML=`<strong>${formatCurrency(p.price)}</strong><s>${formatCurrency(p.original)}</s>
     <span>Save ${Math.round((1-p.price/p.original)*100)}%</span>`;byId('detail-rating').innerHTML=renderRating(id)+` · ${getUnitsSold(id)} completed units sold`;
+  const variants=(p.variants||'').split(',').map(v=>v.trim()).filter(Boolean);byId('variation-row').hidden=!variants.length;
+  byId('product-variant').innerHTML=variants.map(v=>`<option>${escapeHtml(v)}</option>`).join('');
   byId('product-qty').value=p.stock?1:0;byId('product-qty').max=p.stock;
   document.querySelectorAll('#page-product .button-row button').forEach(b=>b.disabled=!p.stock);
   const reviews=store.reviews.filter(r=>r.productId===id);
   byId('reviews').innerHTML=reviews.map(r=>`<div class="review"><strong>${escapeHtml(r.name)} <span class="rating">${'★'.repeat(r.rating)}</span></strong>
     <p>${escapeHtml(r.text)}</p></div>`).join('')||'<p class="muted">No reviews yet.</p>';
-  byId('review-form').hidden=!getCurrentUser()||!store.orders.some(o=>o.userId===activeUserId&&o.status==='Completed'&&o.items.some(i=>i.productId===id))||reviews.some(r=>r.userId===activeUserId&&!r.seeded);
+  byId('review-form').hidden=!getCurrentUser()||!store.orders.some(o=>o.userId===activeUserId&&o.status==='Completed'&&o.items.some(i=>i.productId===id))||reviews.some(r=>r.userId===activeUserId);
 }
 // Render cart quantities and totals for checked items only.
 function renderCartPage() { const rows=cart(store,activeUserId);byId('cart-items').innerHTML=rows.map(i=>{const p=store.products.find(p=>p.id===i.productId);
-  return `<div class="cart-item"><input type="checkbox" data-select="${p.id}" ${i.selected?'checked':''} aria-label="Select ${escapeHtml(p.name)}">
+  return `<div class="cart-item"><input type="checkbox" data-select="${p.id}" data-variant="${escapeHtml(i.variant||'')}" ${i.selected?'checked':''} aria-label="Select ${escapeHtml(p.name)}">
     <img src="${escapeHtml(getProductImage(p))}" alt="">
-    <div><strong>${escapeHtml(p.name)}</strong>
-    <small>${p.stock} available</small><button data-action="remove" data-id="${p.id}" class="text-button">Remove</button></div><input type="number" min="1" max="${p.stock}" value="${i.qty}" data-quantity="${p.id}" aria-label="Quantity for ${escapeHtml(p.name)}"><b>${formatCurrency(i.qty*p.price)}</b></div>`;
+    <div><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(i.variant||`${p.stock} available`)}</small><button data-action="remove" data-id="${p.id}" data-variant="${escapeHtml(i.variant||'')}" class="text-button">Remove</button></div><div class="quantity-stepper"><button data-action="cart-qty" data-step="-1" data-id="${p.id}" data-variant="${escapeHtml(i.variant||'')}" aria-label="Decrease quantity">−</button><input type="number" min="1" max="${p.stock}" value="${i.qty}" data-quantity="${p.id}" data-variant="${escapeHtml(i.variant||'')}" aria-label="Quantity for ${escapeHtml(p.name)}"><button data-action="cart-qty" data-step="1" data-id="${p.id}" data-variant="${escapeHtml(i.variant||'')}" aria-label="Increase quantity">+</button></div><b>${formatCurrency(i.qty*p.price)}</b></div>`;
   }).join('')||renderEmptyState('Your bag is waiting for a good find.');
   const subtotal=rows.filter(i=>i.selected).reduce((n,i)=>n+i.qty*store.products.find(p=>p.id===i.productId).price,0);
   byId('cart-summary').innerHTML=summaryLine('Selected items',rows.filter(i=>i.selected).reduce((n,i)=>n+i.qty,0))+summaryLine('Subtotal',formatCurrency(subtotal))+summaryLine('Delivery from',formatCurrency(store.settings.standard))+summaryLine('Estimated total',formatCurrency(subtotal+store.settings.standard)); }
@@ -264,17 +255,19 @@ function updateCheckoutSummary() { const options=readCheckoutOptions();byId('ins
   }catch(error){byId('checkout-summary').textContent=error.message;byId('place-order').disabled=true;} }
 // Prepare the saved address, delivery fees, credit balance, and checkout token.
 function renderCheckoutPage() { checkoutToken=uid('checkout');byId('checkout-form').elements.address.value=getCurrentUser().addresses[0]||'';
-  byId('shipping-option').innerHTML=`<option value="standard">Standard — ${formatCurrency(store.settings.standard)}</option><option value="express">Express — ${formatCurrency(store.settings.express)}</option>`;
+  byId('shipping-option').innerHTML=`<option value="standard">${escapeHtml(store.settings.courier)} standard — ${formatCurrency(store.settings.standard)}</option><option value="express">${escapeHtml(store.settings.courier)} express — ${formatCurrency(store.settings.express)}</option>`;
   byId('credit-message').textContent=getCurrentUser().laterActive?`${formatCurrency(availableCredit(store,activeUserId))} available ShopayLater balance`:'Activate ShopayLater in your account first.';updateCheckoutSummary(); }
 // Order cards use immutable snapshots; later catalog changes do not rewrite past purchases.
 function renderOrderCard(o) { return `<article class="panel order-card"><div class="section-heading"><div><strong>${escapeHtml(o.id.slice(0,22))}</strong>
     <small>${formatDate(o.date)} · ${escapeHtml(o.payment)}</small></div>${renderStatusBadge(o.status)}</div>${o.items.map(i=>`<div class="order-line">
     <img src="${escapeHtml(getProductImage({...i,id:i.productId}))}" alt="">
-    <span>${escapeHtml(i.name)} ×${i.qty}</span><b>${formatCurrency(i.net)}</b></div>`).join('')}<p class="order-progress">${['Pending','Processing','Shipped','Delivered','Completed'].map(s=>`<span class="${Object.keys(STATUSES).indexOf(s)<=Object.keys(STATUSES).indexOf(o.status)&&o.status!=='Canceled'?'done':''}">${s}</span>`).join(' → ')}</p>
+    <span>${escapeHtml(i.name)} ×${i.qty}${o.status==='Completed'&&!store.reviews.some(r=>r.userId===activeUserId&&r.productId===i.productId)?`<a class="text-button" href="#product/${escapeHtml(i.productId)}">Write a review</a>`:''}</span><b>${formatCurrency(i.net)}</b></div>`).join('')}<p class="order-progress">${['Pending','Processing','Shipped','Delivered','Completed'].map(s=>`<span class="${Object.keys(STATUSES).indexOf(s)<=Object.keys(STATUSES).indexOf(o.status)&&o.status!=='Canceled'?'done':''}">${s}</span>`).join(' → ')}</p>
     <p class="muted small">${escapeHtml(o.address)}</p>${summaryLine('Total payable',formatCurrency(o.total))}${['Pending','Processing'].includes(o.status)&&o.userId===activeUserId?`<button data-action="cancel-order" data-id="${o.id}" class="text-button">Cancel order</button>`:''}</article>`; }
 // Show recent purchases and include earlier history when requested.
-function renderOrdersPage() { const orders=store.orders.filter(o=>o.userId===activeUserId&&(!o.seeded||byId('show-earlier-orders').checked)).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  byId('order-list').innerHTML=orders.slice(0,40).map(renderOrderCard).join('')||renderEmptyState('Your next delivery starts with a find.'); }
+function renderOrdersPage() { const matches={pay:o=>o.status==='Pending',ship:o=>o.status==='Processing',receive:o=>['Shipped','Delivered'].includes(o.status),rate:o=>o.status==='Completed'&&o.items.some(i=>!store.reviews.some(r=>r.userId===activeUserId&&r.productId===i.productId)),history:o=>['Completed','Canceled'].includes(o.status)};
+  const orders=store.orders.filter(o=>o.userId===activeUserId&&matches[purchaseTab](o)).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  document.querySelectorAll('#purchase-tabs button').forEach(b=>{const selected=b.dataset.value===purchaseTab;b.classList.toggle('active',selected);b.setAttribute('aria-selected',selected);});byId('order-list').innerHTML=orders.slice(0,40).map(renderOrderCard).join('')||renderEmptyState('No purchases in this section yet.'); }
+function renderSupportPage() { const signedIn=Boolean(getCurrentUser());byId('customer-chat').innerHTML=signedIn?renderChatMessages(activeUserId):'<p class="muted">Log in to start a conversation with Shopay.</p><a href="#login">Log in to message us ↗</a>';byId('support-form').hidden=!signedIn; }
 // Display eligibility information and the account claim state.
 function renderVouchersPage() { byId('voucher-list').innerHTML=store.vouchers.map(v=>{const claimed=getCurrentUser()?.claimed.includes(v.code),disabled=v.remaining<=0||v.expires<dateKey(new Date());
   return `<article class="voucher-card"><div><strong>${v.type==='percent'?v.value+'%':formatCurrency(v.value)}</strong>
@@ -298,13 +291,13 @@ function renderProfilePage() { const u=getCurrentUser(),form=byId('profile-form'
 function renderApplication() {
   if(document.body.dataset.mode==='admin'){if(typeof initializeAdmin==='function')initializeAdmin();return;}
   const route=location.hash.slice(1)||'home',page=route.startsWith('product/')?'product':route==='collection'?'home':route;
-  if(!['home','product','vouchers','login','register','backup'].includes(page)&&!requireUser())return;
+  if(!['home','product','vouchers','login','register','backup','support'].includes(page)&&!requireUser())return;
   document.querySelectorAll('main > .page').forEach(el=>el.hidden=el.id!=='page-'+page);
   byId('cart-count').textContent=getCurrentUser()?cart(store,activeUserId).reduce((n,i)=>n+i.qty,0):0;
   byId('account-link').textContent=getCurrentUser()?.name.split(' ')[0]||'Log in';
   const activeRoute=page==='checkout'?'cart':page==='later'||page==='backup'?'profile':page;
   document.querySelectorAll('.site-header nav a').forEach(a=>{if(a.hash==='#'+activeRoute)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
-  const views={home:renderHomePage,cart:renderCartPage,checkout:renderCheckoutPage,orders:renderOrdersPage,vouchers:renderVouchersPage,later:renderInstallmentsPage,profile:renderProfilePage};
+  const views={home:renderHomePage,cart:renderCartPage,checkout:renderCheckoutPage,orders:renderOrdersPage,support:renderSupportPage,vouchers:renderVouchersPage,later:renderInstallmentsPage,profile:renderProfilePage};
   if(page==='product')renderProductPage(route.split('/')[1]);else if(views[page])views[page]();else if(!byId('page-'+page)){location.hash='home';return;}
   document.title='Shopay · '+(page==='home'?'Good finds, everyday':page);if(route==='collection')byId('collection').scrollIntoView();else window.scrollTo(0,0);
 }
@@ -312,7 +305,7 @@ function renderApplication() {
 function exportBackup(raw=false) { const text=raw?localStorage.getItem(KEY):JSON.stringify(store,null,2),url=URL.createObjectURL(new Blob([text||''],{type:'application/json'})),link=document.createElement('a');
   link.href=url;link.download=`shopay-${dateKey(new Date())}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000); }
 async function importBackup(file) { if(!file)return;
-  if(file.size>5*1024*1024)throw Error('Backup must be under 5 MB.');const data=migrateShopCopy(validate(JSON.parse(await file.text())));
+  if(file.size>5*1024*1024)throw Error('Backup must be under 5 MB.');const data=validate(migrateShopCopy(JSON.parse(await file.text())));
   if(!confirm(`Replace local data with ${data.products.length} products and ${data.orders.length} orders? Export first to keep your current records.`))return;
   save(data,localStorage);store=data;activeUserId=null;localStorage.removeItem(SESSION_KEY);showToast('Backup restored. Please log in.');renderApplication(); }
 // Replace local records only after confirmation; never reset data on refresh.
@@ -326,14 +319,17 @@ function handleDocumentClick(event) {
     if(action==='export'){exportBackup();return;}if(action==='reset'){resetShopData();return;}
     if(action==='logout'){activeUserId=null;localStorage.removeItem(SESSION_KEY);showToast('Logged out.');renderApplication();return;}
     if(action==='category'){category=value;location.hash='home';renderHomePage();byId('collection').scrollIntoView();return;}
+    if(action==='choose-variant'){location.hash='product/'+id;return;}if(action==='purchase-tab'){purchaseTab=value;renderOrdersPage();return;}
+    if(action==='product-qty'){const input=byId('product-qty'),p=store.products.find(p=>p.id===selectedProductId);input.value=Math.max(1,Math.min(p.stock,+input.value+(+b.dataset.step)));return;}
     if(action==='clear-filters'){category='All';byId('search-form').reset();byId('min-price').value='';
   byId('max-price').value='';byId('available-only').checked=false;byId('sort').value='recommended';renderHomePage();return;}
     if(action==='apply-vouchers'){updateCheckoutSummary();return;}if(!requireUser())return;
-    if(['add','add-detail','buy'].includes(action)){const productId=id||selectedProductId,qty=action==='add'?1:+byId('product-qty').value;
-  updateState(data=>{setCart(data,activeUserId,productId,action==='buy'?qty:(cart(data,activeUserId).find(i=>i.productId===productId)?.qty||0)+qty);
-  if(action==='buy')data.carts[activeUserId].forEach(i=>i.selected=i.productId===productId);});
+    if(['add','add-detail','buy'].includes(action)){const productId=id||selectedProductId,qty=action==='add'?1:+byId('product-qty').value,variant=byId('product-variant')?.value||'';
+  updateState(data=>{const old=cart(data,activeUserId).find(i=>i.productId===productId&&i.variant===variant);setCart(data,activeUserId,productId,action==='buy'?qty:(old?.qty||0)+qty,variant);
+  if(action==='buy')data.carts[activeUserId].forEach(i=>i.selected=i.productId===productId&&i.variant===variant);});
   if(action==='buy')location.hash='checkout';else{renderApplication();showToast('A good find added to your bag.');}return;}
-    if(action==='remove')updateState(data=>setCart(data,activeUserId,id,0));
+    if(action==='cart-qty'){const row=cart(store,activeUserId).find(i=>i.productId===id&&i.variant===(b.dataset.variant||''));updateState(data=>setCart(data,activeUserId,id,Math.max(1,row.qty+(+b.dataset.step)),row.variant));renderCartPage();return;}
+    if(action==='remove')updateState(data=>setCart(data,activeUserId,id,0,b.dataset.variant||''));
     if(action==='cancel-order'){const o=store.orders.find(o=>o.id===id);if(o.userId!==activeUserId)throw Error('This order belongs to another account.');
   updateState(data=>updateOrderStatus(data,id,'Canceled'));showToast('Canceled; reserved stock restored.');}
     if(action==='claim')updateState(data=>{const v=data.vouchers.find(v=>v.id===id),u=currentUser(data,activeUserId);
@@ -345,34 +341,38 @@ function handleDocumentClick(event) {
 }
 // Native form constraints validate inputs; business rules are checked again before storage writes.
 function handleFormSubmit(event) {
-  const form=event.target;if(!['login-form','register-form','search-form','checkout-form','profile-form','address-form','review-form'].includes(form.id))return;
+  const form=event.target;if(!['login-form','register-form','seller-register-form','support-form','search-form','checkout-form','profile-form','address-form','review-form'].includes(form.id))return;
   event.preventDefault();const d=Object.fromEntries(new FormData(form));
   try {
     if(form.id==='search-form'){location.hash='home';renderHomePage();byId('collection').scrollIntoView();return;}
     if(form.id==='login-form'){const role=document.body.dataset.mode==='admin'?'seller':'customer',u=store.users.find(u=>u.role===role&&u.email.toLowerCase()===d.email.trim().toLowerCase()&&u.pin===d.pin);
   if(!u)throw Error('Check your email, PIN, and account type.');activeUserId=u.id;
   localStorage.setItem(SESSION_KEY,u.id);location.hash=role==='seller'?'dashboard':'home';renderApplication();return;}
+    if(form.id==='seller-register-form'){if(document.body.dataset.mode!=='admin')return;if(!d.name.trim()||!/^[0-9]{4}$/.test(d.pin)||store.users.some(u=>u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('Enter a name, a new email, and a 4-digit PIN.');const id=uid('seller');
+  updateState(data=>{data.users.push({id,name:d.name.trim(),email:d.email.trim().toLowerCase(),pin:d.pin,role:'seller',addresses:[],claimed:[]});if(d.catalog==='starter'&&!data.products.length)data.products=starterProducts(data.shop.id);});
+  activeUserId=id;localStorage.setItem(SESSION_KEY,id);location.hash='dashboard';renderApplication();return;}
     if(form.id==='register-form'){if(store.users.some(u=>u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('This email is already registered.');
   if(!/^\d{4}$/.test(d.pin)||!d.name.trim())throw Error('Enter your name and a 4-digit PIN.');const id=uid('customer');
   updateState(data=>data.users.push({id,name:d.name.trim(),email:d.email.trim().toLowerCase(),pin:d.pin,role:'customer',addresses:[],claimed:[],laterActive:false}));
   activeUserId=id;localStorage.setItem(SESSION_KEY,id);location.hash='home';renderApplication();return;}
     if(!requireUser())return;
+    if(form.id==='support-form'){updateState(data=>addChatMessage(data,activeUserId,d.text,getCurrentUser()));form.reset();renderSupportPage();showToast('Message sent to Shopay support.');return;}
     if(form.id==='checkout-form'){byId('place-order').disabled=true;try{updateState(data=>checkout(data,activeUserId,{...d,token:checkoutToken}));
   location.hash='orders';showToast('Your order has been placed.');}finally{byId('place-order').disabled=false;}return;}
     if(form.id==='profile-form')updateState(data=>{if(!d.name.trim()||data.users.some(u=>u.id!==activeUserId&&u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('Enter your name and a unique email address.');
   Object.assign(currentUser(data,activeUserId),{name:d.name.trim(),email:d.email.trim().toLowerCase()});});
     if(form.id==='address-form'){updateState(data=>currentUser(data,activeUserId).addresses.push(d.address.trim()));form.reset();}
-    if(form.id==='review-form'){if(!d.text.trim()||!store.orders.some(o=>o.userId===activeUserId&&o.status==='Completed'&&o.items.some(i=>i.productId===selectedProductId))||store.reviews.some(r=>r.userId===activeUserId&&r.productId===selectedProductId&&!r.seeded))throw Error('Write one review per completed product purchase.');
-  updateState(data=>data.reviews.push({id:uid('review'),userId:activeUserId,productId:selectedProductId,rating:+d.rating,text:d.text.trim(),name:getCurrentUser().name,seeded:false}));
+    if(form.id==='review-form'){if(!d.text.trim()||!store.orders.some(o=>o.userId===activeUserId&&o.status==='Completed'&&o.items.some(i=>i.productId===selectedProductId))||store.reviews.some(r=>r.userId===activeUserId&&r.productId===selectedProductId))throw Error('Write one review per completed product purchase.');
+  updateState(data=>data.reviews.push({id:uid('review'),userId:activeUserId,productId:selectedProductId,rating:+d.rating,text:d.text.trim(),name:getCurrentUser().name,date:new Date().toISOString()}));
   form.reset();}renderApplication();showToast('Your changes have been saved.');
   } catch(error){showToast(error.message);}
 }
 async function handleInputChange(event) { const el=event.target;try{if(el.id==='import-file'){await importBackup(el.files[0]);
-  el.value='';return;}if(el.dataset.quantity){updateState(data=>setCart(data,activeUserId,el.dataset.quantity,+el.value));
-  renderCartPage();}else if(el.dataset.select){updateState(data=>cart(data,activeUserId).find(i=>i.productId===el.dataset.select).selected=el.checked);
+  el.value='';return;}if(el.dataset.quantity){updateState(data=>setCart(data,activeUserId,el.dataset.quantity,+el.value,el.dataset.variant||''));
+  renderCartPage();}else if(el.dataset.select){updateState(data=>cart(data,activeUserId).find(i=>i.productId===el.dataset.select&&i.variant===(el.dataset.variant||'')).selected=el.checked);
   renderCartPage();}else if(el.closest('#checkout-form'))updateCheckoutSummary();
   else if(['min-price','max-price','available-only','sort'].includes(el.id))renderHomePage();
-  else if(el.id==='show-earlier-orders')renderOrdersPage();}catch(error){showToast(error.message);
+  }catch(error){showToast(error.message);
   if(el.dataset.quantity)renderCartPage();} } // Refresh dependent totals after a change.
 function handleProductImageError(event) { const img=event.target;if(img.tagName!=='IMG'||img.dataset.fallback)return;
   img.dataset.fallback='1';img.src=fallbackImage(img.alt||'shopay'); } // Offline/broken-photo fallback.
@@ -381,7 +381,7 @@ function handleStorageChange(event) { if([KEY,SESSION_KEY].includes(event.key)){
 // Initialize once. A corrupt dataset is never silently replaced or seeded over.
 function initializeShopay() {
   history.scrollRestoration='manual'; // Page routes control their own scroll position.
-  try{store=load(localStorage);if(!store){store=seed();save(store,localStorage);}activeUserId=localStorage.getItem(SESSION_KEY);
+  try{store=load(localStorage);if(!store){store=seed();save(store,localStorage);}activeUserId=localStorage.getItem(SESSION_KEY);if(!currentUser(store,activeUserId)){activeUserId=null;localStorage.removeItem(SESSION_KEY);}if(document.body.dataset.mode==='customer')recordVisit();
   }catch(error){document.body.innerHTML=`<main class="page panel"><h1>Your Shopay data needs attention.</h1>
     <p>${escapeHtml(error.message)}</p><button id="raw-export" class="button outlined">Export stored data</button><button id="raw-reset" class="button danger">Restore shop defaults</button></main>`;
   byId('raw-export').onclick=()=>exportBackup(true);byId('raw-reset').onclick=resetShopData;return;}

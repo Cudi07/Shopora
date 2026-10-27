@@ -1,5 +1,4 @@
-/* SHOPAY DESIGN: warm paper, forest green, coral details, generous readable spacing. */
-:root{--paper:#f8f7f1;--white:#fff;--ink:#263d30;--green:#355f49;--muted:#596656;--line:#e3e7dc;--coral:#de795d;--coral-strong:#b84a32;--soft:#e6eddc;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:var(--paper);font-size:14px}
+:root{--paper:#f8f7f1;--white:#fff;--ink:#263d30;--green:#355f49;--muted:#596656;--line:#e3e7dc;--coral:#de795d;--coral-strong:#b84a32;--soft:#e6eddc;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--paper);font-size:14px}
 *{box-sizing:border-box}
 body{margin:0}
 button,input,select,textarea{font:inherit}
@@ -60,7 +59,7 @@ button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid var
 .search{display:flex;flex:1;background:#f1f3e9;border:1px solid #e9ecdf;border-radius:7px;max-width:570px}
 .search input{background:transparent;border:0;padding:12px 16px;min-width:80px}
 .search button{background:var(--green);color:white;border-radius:4px;margin:4px;width:40px;font-size:24px}
-.site-header nav{display:flex;align-items:center;gap:24px;margin-left:auto;font-size:11px;white-space:nowrap}
+.site-header nav{display:flex;align-items:center;gap:24px;margin-left:auto;font-size:11px;white-space:nowrap}.site-header nav a{display:inline-flex;align-items:center;gap:6px}
 .site-header nav b{font-size:9px;display:inline-flex;min-width:17px;justify-content:center;background:#e5ebdc;padding:3px;border-radius:10px}
 .site-header nav a[aria-current=page]{color:var(--green);font-weight:700;border-bottom:2px solid var(--coral)}
 .page{width:min(1260px,calc(100% - 60px));margin:32px auto 50px;min-height:55vh}
@@ -219,7 +218,7 @@ footer p{font-size:10px;color:#56654c;margin-bottom:0}
 footer>span{font-size:9px;color:#56644b;margin-left:auto}
 footer>a:last-child{font-size:10px;color:#4e6739;white-space:nowrap}
 /* Seller workspace uses the same palette, so the two modes feel connected. */
-.admin-auth{width:min(1020px,calc(100% - 60px));margin:45px auto}
+.admin-auth{width:min(1020px,calc(100% - 60px));margin:45px auto}.seller-signup{grid-column:2}
 .seller-layout{display:flex;min-height:100vh}
 .sidebar{position:fixed;inset:0 auto 0 0;width:225px;background:#263e30;color:#a6b69a;padding:30px 19px;display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin}
 .sidebar>.logo{color:#f3f5e8;font-size:31px;margin-left:8px}
@@ -252,7 +251,7 @@ footer>a:last-child{font-size:10px;color:#4e6739;white-space:nowrap}
 .kpi>strong{font-size:27px;letter-spacing:-1px;display:block;margin-block:17px}
 .kpi>small{font-size:8px;line-height:1.6;color:#58664d;display:block}
 .chart{display:block;width:100%;height:auto;margin-top:18px;min-height:150px}
-.chart text{font:10px Arial,sans-serif;fill:#58654e}
+.chart text{font:20px Arial,sans-serif;fill:#58654e}
 .bar-row{margin-top:23px}
 .bar-row>div:first-child{display:flex;justify-content:space-between;gap:12px;margin-bottom:10px;font-size:10px;color:#56664b}
 .bar-row b{font-size:9px;font-weight:500;white-space:nowrap}
@@ -298,8 +297,6 @@ dialog .order-line{font-size:10px}
 dialog #order-details{max-height:420px;overflow:auto}
 #toast{position:fixed;bottom:25px;left:50%;transform:translate(-50%,15px);background:#2b4a34;color:white;padding:16px 22px;border-radius:8px;font-size:12px;line-height:1.6;max-width:min(500px,90vw);width:max-content;box-shadow:0 10px 35px #24422030;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s}
 #toast.show{opacity:1;transform:translate(-50%,0)}
-/* Tablet layout: fewer card columns and stacked dashboard regions. */
-
 /* Tablet: fewer catalog columns and a compact seller navigation. */
 @media(max-width:1100px){
   .product-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -323,10 +320,10 @@ dialog #order-details{max-height:420px;overflow:auto}
 @media(max-width:700px){
   h1{font-size:29px}
   .announcement{padding:9px 15px;font-size:8px}
-  .announcement>span,.site-header nav>a:nth-child(2){display:none}
+  .announcement>span{display:none}
   .site-header{padding:15px;gap:13px;flex-wrap:wrap}
   .logo{font-size:28px}.logo-mark{width:27px;height:30px}
-  .site-header nav{gap:15px;font-size:10px}
+  .site-header nav{order:4;flex-basis:100%;justify-content:space-between;gap:8px;margin:0;font-size:10px}
   .search{order:3;flex-basis:100%;max-width:none}
   .page{width:calc(100% - 30px);margin-block:20px 30px}
   .hero{grid-template-columns:1fr;min-height:535px}
@@ -362,6 +359,40 @@ dialog #order-details{max-height:420px;overflow:auto}
   .kpi-grid{gap:12px}.kpi{padding:17px 14px}.kpi>span{font-size:8px}.kpi>strong{font-size:23px}.kpi>small{font-size:7px}.seller-footer{font-size:7px;padding:15px}
   .forecast-controls{grid-template-columns:1fr 1fr;gap:15px}.forecast-controls>label:first-child,.forecast-controls>.button{grid-column:1/-1}
   .admin-page .section-heading .button-row{width:100%}.admin-page .section-heading .button-row label{flex:1}.admin-page .section-heading>.button{font-size:10px}
-  dialog{padding:22px}dialog .two-columns{grid-template-columns:1fr 1fr;gap:13px}dialog .section-heading h2{font-size:20px}dialog label{font-size:10px}.admin-auth{width:calc(100% - 40px);margin:22px auto}
+  dialog{padding:22px}dialog .two-columns{grid-template-columns:1fr 1fr;gap:13px}dialog .section-heading h2{font-size:20px}dialog label{font-size:10px}.admin-auth{width:calc(100% - 40px);margin:22px auto}.seller-signup{grid-column:1}
 }
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+.bag-link{display:flex;align-items:center;gap:5px;padding:9px;color:var(--green)}.bag-link svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.8}.bag-link b{display:grid;place-items:center;min-width:19px;height:19px;padding:2px;border-radius:50%;background:#e5ebdc;font-size:12px}.site-header nav .nav-icon{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7}
+.quantity-stepper{display:flex;align-items:center;gap:5px}.quantity-stepper button{width:40px;height:40px;border:1px solid var(--line);border-radius:6px;background:white;font-size:20px}.quantity-stepper input{width:62px;text-align:center}
+.chat-thread{display:grid;gap:12px;max-height:55vh;overflow:auto}.chat-message{max-width:85%;padding:13px;background:#f0f3e9;border-radius:10px}.chat-message.from-shop{justify-self:end;background:#e4ede0}.chat-message p{margin:6px 0;font-size:14px}
+.purchase-tabs{display:flex;gap:8px;overflow-x:auto}.purchase-tabs button{flex:0 0 auto;min-height:40px}
+/* Readable system fonts keep shop text clear without changing its visual identity. */
+body{font-size:16px;line-height:1.55}
+button,input,select,textarea{font:inherit;line-height:1.4}
+h1,h2,h3,p,li{line-height:1.45}
+.site-header nav,.site-header nav b,.seller-top,.sidebar nav a,.button,.text-button,.button.small,.category-buttons button,.filters .text-button,td .text-button,dialog .order-progress,dialog .order-line,dialog .notice{font-size:14px}
+.announcement,.workspace-label,.eyebrow,.auth-intro .eyebrow,.hero .eyebrow,.offer-banner .eyebrow,.collection .eyebrow,.sidebar>.eyebrow,.admin-page>.eyebrow{font-size:12px}
+.hero p,.product-detail p,.offer-banner p,.muted,.notice{font-size:14px}
+.filters,.filters label,.filters input,.filters select,.admin-page label,.auth-page label,.search input,body .admin-page select,body .admin-page input,dialog label{font-size:14px}
+.product-copy>small,.product-meta,.rating,.collection-note,.benefits small,.benefits strong,.hero-note,.flash-products strong,.review small,.credit-banner small,.loan-card>div:last-child>small,.admin-page details,summary,.empty a,.hero-art::after{font-size:13px}
+.product-copy>small:first-child,.eyebrow{letter-spacing:.09em}
+.product-copy>a,.cart-item strong,.review strong,.order-line,.summary-line{font-size:15px}
+.prices strong,.detail-price strong{font-size:19px}
+.prices s,.detail-price s,.detail-price>span,.discount,.sold-out,.badge,.hero-ticket small,.hero-ticket>span,.hero-price small{font-size:12px}
+.cart-item small,.order-card .section-heading small,.order-progress,.order-card .muted{font-size:12px}
+.voucher-card p,.voucher-card section>small,.loan-card p,.loan-card details,.account-links a{font-size:14px}
+.seller-top,.admin-page>.muted,.admin-page .notice,.kpi>span,.kpi>small{font-size:14px}
+.bar-row>div:first-child,.bar-row b,.bar-row small,.stock-row strong,.stock-row small{font-size:13px}
+th,td,td strong,td small,.adjustment-row,.adjustment-row small{font-size:13px}
+.sidebar nav a,.shop-badge,.sidebar-bottom>p,.sidebar-bottom small,.seller-footer{font-size:13px}
+.auth-intro p,.auth-page .panel>a,.auth-page .panel>p,footer p,footer>span,footer>a:last-child{font-size:14px}
+.quantity-row,.quantity-row input,.cart-item>input[type=number],.forecast-controls .button{font-size:14px}
+@media(max-width:700px){
+  .site-header nav,.site-header nav a,.announcement,.filters label,.sidebar nav a{font-size:13px}
+  .hero p,.hero .button,.product-copy>a,.prices strong,.cart-item strong,.cart-item>b{font-size:14px}
+  .benefits strong,.benefits small,.product-meta,.product-copy>small,.product-copy>small:first-child{font-size:12px}
+  .section-heading>.muted,.order-line,.order-progress,.summary-line,.account-links a{font-size:13px}
+  .admin-page label,.admin-page select,.admin-page input,.kpi>span,.kpi>small,.seller-top{font-size:13px}
+  .kpi>strong{font-size:24px}
+  .eyebrow,.workspace-label{font-size:10px}
+}
