@@ -52,15 +52,26 @@ function getProductImage(product) { const image=normalizeImageSource(product.ima
 // Prepare the catalog, account, order history, and opening inventory.
 function seed() { const data={version:1,shop:{id:'shopay-studio',name:'Shopay',tagline:'Good finds. Everyday joy.'},users:[],products:[],orders:[],carts:{},vouchers:[],installments:[],adjustments:[],reviews:[],visits:[],chats:[],settings:{standard:49,express:99,courier:'J&T Express',window:4}};addDemoSeller(data);return data; }
 function starterProducts(sellerId) { return INITIAL_PRODUCTS.map(p=>({...p,id:sellerId==='seller-demo'?`demo-${p.id}`:`${sellerId}-${p.id}`,sellerId,isDemo:sellerId==='seller-demo',shopId:'shopay-studio',image:`https://images.unsplash.com/photo-${p.photo}?w=640&auto=format&fit=crop&q=80`,variants:'',active:true,description:'A thoughtful everyday essential from the Shopay collection.',specs:'Standard edition',supplier:'Shopay Supply Co.',lead:7,safety:10,minimum:5,flash:['p01','p03','p05'].includes(p.id),created:new Date().toISOString()})); }
+// Keep ready-to-use offers in the shop so the demo does not need voucher setup.
+function seedDemoVouchers(data) {
+  const expiry=dateKey(new Date(Date.now()+180*86400000)),offers=[
+    {id:'demo-offer-goodfinds',code:'GOODFINDS10',type:'percent',value:10,min:500,max:300,remaining:500},
+    {id:'demo-offer-welcome',code:'WELCOME150',type:'fixed',value:150,min:1000,max:150,remaining:250},
+    {id:'demo-offer-shipfree',code:'SHIPFREE',type:'shipping',value:49,min:500,max:49,remaining:500}
+  ];
+  offers.forEach(offer=>{if(!data.vouchers.some(v=>v.id===offer.id||v.code===offer.code))data.vouchers.push({...offer,shopId:data.shop.id,expires:expiry,demoOffer:true});});
+}
 // Create six months of varied demo sales for the forecasting walkthrough.
 function addDemoSeller(data) {
-  if(!data.users.some(u=>u.id==='seller-demo'))data.users.push({id:'seller-demo',name:'Demo Seller',email:'demo@shopay.ph',pin:'1234',role:'seller',addresses:[],claimed:[],isDemo:true});if(!data.users.some(u=>u.id==='customer-demo'))data.users.push({id:'customer-demo',name:'Demo Buyer',email:'buyer@shopay.ph',pin:'2468',role:'customer',addresses:['12 Acacia Street, Quezon City'],claimed:[]});
+  if(!data.users.some(u=>u.id==='seller-demo'))data.users.push({id:'seller-demo',name:'Demo Seller',email:'demo@shopay.ph',pin:'1234',role:'seller',addresses:[],claimed:[],isDemo:true});if(!data.users.some(u=>u.id==='customer-demo'))data.users.push({id:'customer-demo',name:'Demo Buyer',email:'buyer@shopay.ph',pin:'2468',role:'customer',addresses:['12 Acacia Street, Quezon City'],claimed:[],isDemo:true});
+  // Forecast history belongs to a separate sample customer, not the live Demo Buyer.
+  if(!data.users.some(u=>u.id==='customer-sample'))data.users.push({id:'customer-sample',name:'Sample Customer',email:'sample-data@shopay.invalid',pin:'0000',role:'customer',addresses:['12 Acacia Street, Quezon City'],claimed:[],isSample:true});
   const buyer=data.users.find(u=>u.id==='customer-demo');if(!buyer.addresses.length)buyer.addresses.push('12 Acacia Street, Quezon City');
-  if(!data.products.some(p=>p.sellerId==='seller-demo'))data.products.push(...starterProducts('seller-demo'));data.products.filter(p=>p.sellerId==='seller-demo'&&/^demo-p\d{2}$/.test(p.id)).forEach(p=>p.isDemo=true);
-  if(data.demoVersion!==5){data.orders=data.orders.filter(o=>!o.isDemo);data.demoVersion=5;}if(data.orders.some(o=>o.isDemo))return;
+  if(!data.products.some(p=>p.sellerId==='seller-demo'))data.products.push(...starterProducts('seller-demo'));data.products.filter(p=>p.sellerId==='seller-demo'&&/^demo-p\d{2}$/.test(p.id)).forEach(p=>p.isDemo=true);seedDemoVouchers(data);
+  if(data.demoVersion!==6){data.orders=data.orders.filter(o=>!o.isDemo);data.demoVersion=6;}if(data.orders.some(o=>o.isDemo))return;
   const products=data.products.filter(p=>p.sellerId==='seller-demo'),start=new Date(),end=new Date();start.setDate(start.getDate()-((start.getDay()+6)%7)-182);start.setHours(12,0,0,0);end.setDate(end.getDate()-1);end.setHours(12,0,0,0);
   for(let day=0;day<=(end-start)/86400000;day++){const date=new Date(start);date.setDate(date.getDate()+day);const items=products.map((p,n)=>{const age=day,variation=[-.8,.4,-.2,.7,-.5,.1,.3,-.3,.8,-.1,.2][(age*3+n*2)%11],promo=[1,15].includes(date.getDate())&&n%3===0?.8:0,weekend=date.getDay()===6?.7:date.getDay()===0?.25:0,qty=Math.max(0,Math.round((n<4?1.9:.7)+Math.sin(age*.53+n*1.7)+variation+weekend+promo+age/500));return {productId:p.id,sellerId:'seller-demo',shopId:data.shop.id,name:p.name,category:p.category,price:p.price,qty,image:p.image,variant:'',net:p.price*qty};}).filter(i=>i.qty);
-    const total=items.reduce((sum,i)=>sum+i.net,0),stamp=date.toISOString();data.orders.push({id:`SP-${dateKey(date)}`,userId:'customer-demo',customer:'Demo Buyer',shopId:data.shop.id,date:stamp,completedAt:stamp,status:'Completed',address:buyer.addresses[0],payment:'E-Wallet',shippingOption:'standard',subtotal:total,discount:0,shipping:0,shippingDiscount:0,total,vouchers:[],restored:false,isDemo:true,items});}
+    const total=items.reduce((sum,i)=>sum+i.net,0),stamp=date.toISOString();data.orders.push({id:`SP-${dateKey(date)}`,userId:'customer-sample',customer:'Sample Customer',shopId:data.shop.id,date:stamp,completedAt:stamp,status:'Completed',address:buyer.addresses[0],payment:'E-Wallet',shippingOption:'standard',subtotal:total,discount:0,shipping:0,shippingDiscount:0,total,vouchers:[],restored:false,isDemo:true,items});}
 }
 // Validate imported or changed records before any LocalStorage replacement.
 function validate(data) {
@@ -83,7 +94,7 @@ function migrateShopCopy(data) {
   data.reviews=data.reviews.filter(r=>!r.seeded&&!r.synthetic&&r.userId!=='customer-demo'&&r.id!=='r1');
   data.installments=data.installments.filter(l=>!l.seeded&&!l.synthetic&&l.userId!=='customer-demo'&&l.id!=='SL-001'&&l.id!=='SL-DEMO-001');
   data.adjustments=data.adjustments.filter(a=>!String(a.id).startsWith('opening-')&&!String(a.reason).startsWith('Opening stock'));
-  data.vouchers=data.vouchers.filter(v=>!['v1','v2','v3'].includes(v.id)&&!v.seeded);
+  data.vouchers=data.vouchers.filter(v=>!['v1','v2','v3'].includes(v.id)&&(!v.seeded||v.demoOffer));
   if(data.seededAt)data.products=data.products.filter(p=>!/^p\d{2}$/.test(p.id)||Date.parse(data.seededAt)-Date.parse(p.created)<180*86400000);
   data.products.forEach(p=>{p.variants??='';p.sellerId??=data.users.find(u=>u.role==='seller'&&u.id!=='seller-demo')?.id||'seller-demo';});
   data.orders.forEach(o=>o.items.forEach(i=>{i.sellerId??=data.products.find(p=>p.id===i.productId)?.sellerId||'seller-demo';}));addDemoSeller(data);
@@ -352,7 +363,7 @@ function handleFormSubmit(event) {
   event.preventDefault();const d=Object.fromEntries(new FormData(form));
   try {
     if(form.id==='search-form'){location.hash='home';renderHomePage();byId('collection').scrollIntoView();return;}
-    if(form.id==='login-form'){const role=document.body.dataset.mode==='admin'?'seller':'customer',u=store.users.find(u=>u.role===role&&u.email.toLowerCase()===d.email.trim().toLowerCase()&&u.pin===d.pin);
+    if(form.id==='login-form'){const role=document.body.dataset.mode==='admin'?'seller':'customer',u=store.users.find(u=>u.role===role&&!u.isSample&&u.email.toLowerCase()===d.email.trim().toLowerCase()&&u.pin===d.pin);
   if(!u)throw Error('Check your email, PIN, and account type.');activeUserId=u.id;
   localStorage.setItem(SESSION_KEY,u.id);location.hash=role==='seller'?'dashboard':'home';renderApplication();return;}
     if(form.id==='seller-register-form'){if(document.body.dataset.mode!=='admin')return;if(!d.name.trim()||!/^[0-9]{4}$/.test(d.pin)||store.users.some(u=>u.email.toLowerCase()===d.email.trim().toLowerCase()))throw Error('Enter a name, a new email, and a 4-digit PIN.');const id=uid('seller');
